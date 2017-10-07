@@ -1,0 +1,66 @@
+﻿<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+		<title>Map</title>
+        
+        <link href="css/map.css" rel="stylesheet">
+
+        <script type="text/javascript" src="src/libraries/rhill-voronoi-core.min.js"></script>        
+        <script type="text/javascript" src="src/libraries/Simplex.js"></script>
+        <script type="text/javascript" src="src/libraries/perlin.js"></script>
+
+        <script type="text/javascript" src="src/libraries/paper.js"></script>
+
+        <script type="text/javascript" src="src/libraries/three.js"></script>
+
+        <script type="text/javascript" src="src/Island.js"></script>
+        <script type="text/javascript" src="src/PaperRenderer.js"></script>
+        <script type="text/javascript" src="src/ThreeJsRenderer.js"></script>
+	</head>
+
+	<body>
+        <canvas id="paperCanvas" resize="true"></canvas>
+        <canvas id="perlinNoiseCanvas" hidden="true"></canvas>
+        <canvas id="threeJsCanvas" resize="true"></canvas>
+        
+        <script type="application/javascript">
+    paper.install(window);
+    window.onload = function(e) {
+        var paperCanvas = document.getElementById('paperCanvas');
+        var perlinNoiseCanvas = document.getElementById('perlinNoiseCanvas');
+        var threeJsCanvas = document.getElementById('threeJsCanvas');
+
+        paperCanvas.onclick = function() {
+            PaperRenderer.toggleDebug();
+            perlinNoiseCanvas.style.display = (perlinNoiseCanvas.style.display == 'block' ? 'none' : 'block');
+        };
+
+        var userConfig = {
+            width: 500,
+            height: 500,
+            perlinWidth: 256,
+            perlinHeight: 256,
+            allowDebug: true, // if set to true, you can clic on the map to enter "debug" mode. Warning : debug mode is slow to initialize, set to false for faster rendering.
+            nbSites: 1000, //10000, // nb of voronoi cell
+            sitesDistribution: 'hexagon', // distribution of the site : random, square or hexagon
+            sitesRandomisation: 80, // will move each site in a random way (in %), for the square or hexagon distribution to look more random
+            nbGraphRelaxation: 0, // nb of time we apply the relaxation algo to the voronoi graph (slow !), for the random distribution to look less random
+            cliffsThreshold: 0.15,
+            lakesThreshold: 0.005, // lake elevation will increase by this value (* the river size) when a new river end inside
+            nbRivers: (10000 / 200),
+            maxRiversSize: 4,
+            shading: 0.35,
+            shadeOcean: true
+        }
+
+        var result = Island.generate(userConfig, perlinNoiseCanvas);
+
+        PaperRenderer.render(paperCanvas, result.diagram, result.sites, userConfig);
+
+        ThreeJsRenderer.render(threeJsCanvas, result.diagram, result.sites, userConfig);
+    };
+    </script>
+        <noscript>You need to enable Javascript in your browser for this page to display properly.</noscript>
+	</body>
+</html>
