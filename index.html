@@ -13,6 +13,11 @@
         <script type="text/javascript" src="src/libraries/paper.js"></script>
 
         <script type="text/javascript" src="src/libraries/three.js"></script>
+        <script type="text/javascript" src="src/libraries/OrbitControls.js"></script>
+
+        <script type="text/javascript" src="src/libraries/robustPointInPolygon.js"></script>
+
+
 
         <script type="text/javascript" src="src/Island.js"></script>
         <script type="text/javascript" src="src/PaperRenderer.js"></script>
@@ -24,17 +29,16 @@
         <canvas id="perlinNoiseCanvas" hidden="true"></canvas>
         <canvas id="threeJsCanvas" resize="true"></canvas>
         
-        <script type="application/javascript">
-    paper.install(window);
-    window.onload = function(e) {
-        var paperCanvas = document.getElementById('paperCanvas');
-        var perlinNoiseCanvas = document.getElementById('perlinNoiseCanvas');
-        var threeJsCanvas = document.getElementById('threeJsCanvas');
+        <script type="application/javascript">        
+        window.onload = function(e) {
+            var paperCanvas = document.getElementById('paperCanvas');
+            var perlinNoiseCanvas = document.getElementById('perlinNoiseCanvas');
+            var threeJsCanvas = document.getElementById('threeJsCanvas');
 
-        paperCanvas.onclick = function() {
-            PaperRenderer.toggleDebug();
-            perlinNoiseCanvas.style.display = (perlinNoiseCanvas.style.display == 'block' ? 'none' : 'block');
-        };
+            paperCanvas.onclick = function() {
+                PaperRenderer.toggleDebug();
+                perlinNoiseCanvas.style.display = (perlinNoiseCanvas.style.display == 'block' ? 'none' : 'block');
+            }; 
 
         var userConfig = {
             width: 500,
@@ -48,17 +52,17 @@
             nbGraphRelaxation: 0, // nb of time we apply the relaxation algo to the voronoi graph (slow !), for the random distribution to look less random
             cliffsThreshold: 0.15,
             lakesThreshold: 0.005, // lake elevation will increase by this value (* the river size) when a new river end inside
-            nbRivers: (10000 / 200),
+            nbRivers: 0, //(10000 / 200),
             maxRiversSize: 4,
             shading: 0.35,
             shadeOcean: true
         }
 
-        var result = Island.generate(userConfig, perlinNoiseCanvas);
+        var result = Island.generate(userConfig, perlinNoiseCanvas);        
 
-        PaperRenderer.render(paperCanvas, result.diagram, result.sites, userConfig);
+        PaperRenderer.render(paperCanvas, result.diagram, result.sites, userConfig);        
 
-        ThreeJsRenderer.render(threeJsCanvas, result.diagram, result.sites, userConfig);
+        ThreeJsRenderer.render(threeJsCanvas, result.diagram, result.sites, userConfig);        
     };
     </script>
         <noscript>You need to enable Javascript in your browser for this page to display properly.</noscript>

@@ -61,6 +61,8 @@ var Island = {
 
         this.assignMoisture();
         this.assignBiomes();
+
+        console.info("Island map generated");
         
         return { diagram: this.diagram, sites: this.sites };
     },

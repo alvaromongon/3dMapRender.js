@@ -1,4 +1,4 @@
-var DISPLAY_COLORS = {
+var PAPER_COLORS = {
     OCEAN: new paper.Color('#82caff'),
     BEACH: new paper.Color('#ffe98d'),
     LAKE: new paper.Color('#2f9ceb'),
@@ -43,6 +43,7 @@ var PaperRenderer = {
         this.sites = sites;
         this.config = config;
 
+        paper.install(window);
         paper.setup(this.canvas);
 
         this.cellsLayer = new paper.Layer({ name: 'cell' });
@@ -55,6 +56,8 @@ var PaperRenderer = {
         this.renderSites();
 
         paper.view.draw();
+
+        console.info("Paper render completed");
     },
     
     renderCells: function() {
@@ -85,7 +88,7 @@ var PaperRenderer = {
                 this.riversLayer.activate();
                 var riverPath = new Path();
                 riverPath.strokeWidth = Math.min(cell.riverSize, this.config.maxRiversSize);
-                var riverColor = DISPLAY_COLORS.RIVER.clone();
+                var riverColor = PAPER_COLORS.RIVER.clone();
                 riverColor.brightness = riverColor.brightness - this.getShade(cell);
                 riverPath.strokeColor = riverColor;
                 riverPath.strokeCap = 'round';
@@ -104,7 +107,7 @@ var PaperRenderer = {
             if (this.config.allowDebug && cell.source) {
                 this.debugLayer.activate();
                 var circle = new Path.Circle(new Point(cell.site.x, cell.site.y), 3);
-                circle.fillColor = DISPLAY_COLORS.SOURCE;
+                circle.fillColor = PAPER_COLORS.SOURCE;
             }
         }
     },
@@ -123,7 +126,7 @@ var PaperRenderer = {
                 if (edge.cliff) {
                     edgePath.strokeWidth = 1;
                     edgePath.strokeCap = 'round';
-                    edgePath.strokeColor = DISPLAY_COLORS.ROCK;
+                    edgePath.strokeColor = PAPER_COLORS.ROCK;
                 } else {
                     edgePath.strokeWidth = 1;
                     edgePath.strokeColor = '#000';
@@ -160,7 +163,7 @@ var PaperRenderer = {
     },
 
     getCellColor: function (cell) {
-        var c = DISPLAY_COLORS[cell.biome].clone();
+        var c = PAPER_COLORS[cell.biome].clone();
         c.brightness = c.brightness - this.getShade(cell);
 
         return c;
