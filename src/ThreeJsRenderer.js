@@ -32,6 +32,7 @@ var ThreeJsRenderer = {
 
     scene: null,
     camera: null,
+    light: null,
     renderer: null,
 
     render: function (canvas, diagram, sites, config) {
@@ -46,16 +47,20 @@ var ThreeJsRenderer = {
 
         // Scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xcce0ff);
-        this.scene.fog = new THREE.Fog(0xcce0ff, 500, 10000);
-        this.scene.add(new THREE.AmbientLight(0x666666));
+        //this.scene.background = new THREE.Color(0xcce0ff);
+        //this.scene.fog = new THREE.Fog(0xcce0ff, 500, 10000);
+        //this.scene.add(new THREE.AmbientLight(0x666666));
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(75, 1, 1, 10000);
         this.camera.position.x = 0;
         this.camera.position.y = 0;
-        this.camera.position.z = 1000;
+        this.camera.position.z = 200;
         this.scene.add(this.camera);
+
+        // Light
+        this.light = this.renderLight();
+        this.scene.add(this.light);
 
         // Ground
         //var groundMaterial = new THREE.MeshPhongMaterial({ color: THREE_COLORS.OCEAN.clone(), side: THREE.DoubleSide })
@@ -65,6 +70,11 @@ var ThreeJsRenderer = {
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas});
         this.renderer.setSize(this.config.width, this.config.height);
+        //this.renderer.physicallyCorrectLights = true;
+        //this.renderer.gammaInput = true;
+        //this.renderer.gammaOutput = true;
+        //this.renderer.shadowMap.enabled = true;
+        //this.renderer.toneMapping = THREE.ReinhardToneMapping;
         
         // Cells
         //var group = new THREE.Group();        
@@ -85,6 +95,23 @@ var ThreeJsRenderer = {
         console.info("Three render completed");
     },
 
+    renderLight: function () {
+        var bulbGeometry = new THREE.SphereGeometry(5, 16, 8);
+        bulbLight = new THREE.PointLight(0xffee88, 1, 1000, 2);
+        bulbMat = new THREE.MeshStandardMaterial({
+            emissive: 0xffffee,
+            emissiveIntensity: 1,
+            color: 0x000000
+        });
+        bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));    
+        bulbLight.position.x = 0;
+        bulbLight.position.y = 0;
+        bulbLight.position.z = 300;
+        bulbLight.castShadow = true;
+
+        return bulbLight;
+    },
+
     renderHeightMap: function () {
         // The idea is to create an height map from the voronoi data we have
         // http://blog.mastermaps.com/2013/10/terrain-building-with-threejs.html
@@ -93,12 +120,15 @@ var ThreeJsRenderer = {
         // Create polygons Paths
         var polygonsX = [];
         var polygonsY = [];
-        var realElevations = [];
+        var cells = [];
         for (var cellid in this.diagram.cells) {
             var polygonX = [];
             var polygonY = [];
             var cell = this.diagram.cells[cellid];
 
+            if (cell.ocean) {
+                continue;
+            }
             var start = cell.halfedges[0].getStartpoint();
             polygonX.push(start.x);
             polygonY.push(start.y);
@@ -108,25 +138,25 @@ var ThreeJsRenderer = {
                 polygonX.push(end.x);
                 polygonY.push(end.y);  
             }
-            realElevations.push(cell.realElevation);
+            cells.push(cell);
             polygonsX.push(polygonX);
             polygonsY.push(polygonY);
-            //console.info("Real elevation: " + cell.realElevation);
         }
-        
-        var geometry = new THREE.PlaneGeometry(this.config.width, this.config.height, this.config.width-1, this.config.height-1);
+
+        // Set heigh in plane buffer geometry
+        var geometry = new THREE.PlaneBufferGeometry(this.config.width, this.config.height, this.config.width - 1, this.config.height - 1);
+        var vertices = geometry.attributes.position.array;
 
         // http://paperjs.org/reference/pathitem/#intersect-path
-        for (var i = 0, numVertices = geometry.vertices.length; i < numVertices; i++) {
-            var point = [geometry.vertices[i].x + this.config.width / 2, geometry.vertices[i].y + this.config.height/2];
-            //console.info("Point: " + point.toString());
+        var halfWith = this.config.width / 2;
+        var halfHeight = this.config.height / 2;
+        for (var i = 0, numVertices = vertices.length; i < numVertices; i += 3) {
+            vertices[i+2] = 0; // by default is 0
+            var point = [vertices[i] + halfWith, vertices[i + 1] + halfHeight];
             
-            for (var j = 0, numPolygons = realElevations.length; j < numPolygons; j++) {
-                //console.info("Polygon: " + polygons[j]);
-
-                if (this.checkcheck(point[0], point[1], polygonsX[j], polygonsY[j])) {
-                    geometry.vertices[i].z = realElevations[j] * 100;
-                    //console.info("geometry.vertices[" + i + "] setting real elevation to " + geometry.vertices[i].z + " from polygon " + j);
+            for (var cll = 0, numCells = cells.length; cll < numCells; cll++) {
+                if (this.isPointInPolygon(point[0], point[1], polygonsX[cll], polygonsY[cll])) {
+                    vertices[i+2] = cells[cll].realElevation * 100;
                     // geometry.vertices[i].z = data[i] / 65535 * 10;
                     break;
                 }
@@ -166,26 +196,7 @@ var ThreeJsRenderer = {
         }
     },
 
-    inside: function(vs, point) {
-            // ray-casting algorithm based on
-            // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
-
-            var x = point[0], y = point[1];
-
-            var inside = false;
-            for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-                var xi = vs[i][0], yi = vs[i][1];
-                var xj = vs[j][0], yj = vs[j][1];
-
-                var intersect = ((yi > y) != (yj > y))
-                    && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-                if (intersect) inside = !inside;
-            }
-
-            return inside;
-    },
-
-    checkcheck: function(x, y, cornersX, cornersY) {
+    isPointInPolygon: function(x, y, cornersX, cornersY) {
             var i, j = cornersX.length - 1 ;
             var oddNodes = false;
 
