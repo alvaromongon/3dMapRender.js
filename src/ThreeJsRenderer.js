@@ -69,7 +69,7 @@ var ThreeJsRenderer = {
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas});
-        this.renderer.setSize(this.config.width, this.config.height);
+        this.renderer.setSize(this.config.width*2, this.config.height*2);
         //this.renderer.physicallyCorrectLights = true;
         //this.renderer.gammaInput = true;
         //this.renderer.gammaOutput = true;
@@ -81,7 +81,8 @@ var ThreeJsRenderer = {
         //this.renderCells(group);
         //this.scene.add(group);
 
-        var plane = this.renderHeightMap();
+        //var plane = this.renderHeightMap();
+        var plane = this.renderMap(); 
         this.scene.add(plane);
 
         // Controls
@@ -121,39 +122,33 @@ var ThreeJsRenderer = {
         var polygonsX = [];
         var polygonsY = [];
         var cells = [];
-        for (var cellid in this.diagram.cells) {
-            var polygonX = [];
-            var polygonY = [];
-            var cell = this.diagram.cells[cellid];
-
-            if (cell.ocean) {
-                continue;
-            }
-            var start = cell.halfedges[0].getStartpoint();
-            polygonX.push(start.x);
-            polygonY.push(start.y);
-            for (var iHalfedge = 0; iHalfedge < cell.halfedges.length-1; iHalfedge++) {
-                var halfEdge = cell.halfedges[iHalfedge];
-                var end = halfEdge.getEndpoint();
-                polygonX.push(end.x);
-                polygonY.push(end.y);  
-            }
-            cells.push(cell);
-            polygonsX.push(polygonX);
-            polygonsY.push(polygonY);
+        this.populatePolygonsAndCells(polygonsX, polygonsY, cells);
+        
+        // Create the texture
+        // https://codepen.io/SereznoKot/pen/vNjJWd
+        // https://github.com/mrdoob/three.js/issues/486
+        /*
+        var side = this.config.width * this.config.height; // power of two textures are better cause powers of two are required by some algorithms. Like ones that decide what color will pixel have if amount of pixels is less than amount of textels (see three.js console error when given non-power-of-two texture)
+        var amount = Math.pow(side, 2); // you need 4 values for every pixel in side*side plane
+        var data = new Uint8Array(amount);
+        for (var i = 0; i < amount; i++) {
+            data[i] = Math.random() * 256; // generates random r,g,b,a values from 0 to 1
         }
+        */
+        
 
-        // Set heigh in plane buffer geometry
+        // Create geometry
         var geometry = new THREE.PlaneBufferGeometry(this.config.width, this.config.height, this.config.width - 1, this.config.height - 1);
         var vertices = geometry.attributes.position.array;
 
-        // http://paperjs.org/reference/pathitem/#intersect-path
+        // Set altitudes
         var halfWith = this.config.width / 2;
         var halfHeight = this.config.height / 2;
-        for (var i = 0, numVertices = vertices.length; i < numVertices; i += 3) {
+        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j += 4) {
             vertices[i+2] = 0; // by default is 0
             var point = [vertices[i] + halfWith, vertices[i + 1] + halfHeight];
-            
+            console.log("Evaluating point (" + point[0] + "," + point[1] + ")");
+
             for (var cll = 0, numCells = cells.length; cll < numCells; cll++) {
                 if (this.isPointInPolygon(point[0], point[1], polygonsX[cll], polygonsY[cll])) {
                     vertices[i+2] = cells[cll].realElevation * 100;
@@ -162,13 +157,16 @@ var ThreeJsRenderer = {
                 }
             }
         }
-
+        /*
+        var texture = new THREE.DataTexture(data, side, side, THREE.LuminanceFormat, THREE.UnsignedByteType);
+        texture.needsUpdate = true;
+        var material = new THREE.MeshBasicMaterial({ color: THREE_COLORS["OCEAN"], alphaMap: texture, transparent: false });
+        */
         var material = new THREE.MeshPhongMaterial({
-            color: 0xdddddd,
+            color: THREE_COLORS["GRASSLAND"],
             wireframe: true
         });
-
-        return new THREE.Mesh(geometry, material);        
+        return new THREE.Mesh(geometry, material);
     },
 
     renderCells: function (group) {
@@ -196,21 +194,162 @@ var ThreeJsRenderer = {
         }
     },
 
-    isPointInPolygon: function(x, y, cornersX, cornersY) {
-            var i, j = cornersX.length - 1 ;
-            var oddNodes = false;
+    renderMap: function () {
+        var data = this.generateHeight();
 
-            var polyX = cornersX;
-            var polyY = cornersY;
+        // var geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 ); ????
+        var geometry = new THREE.PlaneBufferGeometry(this.config.width, this.config.height, this.config.width - 1, this.config.height - 1);
+        //geometry.rotateX(- Math.PI / 2);
 
-            for (i = 0; i < cornersX.length; i++) {
-                if ((polyY[i] < y && polyY[j] >= y || polyY[j] < y && polyY[i] >= y) && (polyX[i] <= x || polyX[j] <= x)) {
-                    oddNodes ^= (polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]) < x);
-                }
-                j = i;
+        // Set altitudes
+        var vertices = geometry.attributes.position.array;
+        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3 , j ++) {
+            vertices[i + 2] = data.elevations[j] * 10;
+        }
+
+        texture = new THREE.CanvasTexture(this.generateTexture(data, this.config.width, this.config.height));
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+
+        return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture }));
+    },
+
+    populatePolygonsAndCells(polygonsX, polygonsY, cells) {
+        for (var cellid in this.diagram.cells) {
+            var polygonX = [];
+            var polygonY = [];
+            var cell = this.diagram.cells[cellid];
+
+            // No need to process the ocean cells, the elevation there can be set to a fix number
+            if (cell.ocean) {
+                continue;
             }
+            var start = cell.halfedges[0].getStartpoint();
+            polygonX.push(start.x);
+            polygonY.push(start.y);
+            for (var iHalfedge = 0; iHalfedge < cell.halfedges.length - 1; iHalfedge++) {
+                var halfEdge = cell.halfedges[iHalfedge];
+                var end = halfEdge.getEndpoint();
+                polygonX.push(end.x);
+                polygonY.push(end.y);
+            }
+            cells.push(cell);
+            polygonsX.push(polygonX);
+            polygonsY.push(polygonY);
+        }
+    },
 
-            return oddNodes;
+    generateHeight: function () {
+        // Create polygons Paths
+        var polygonsX = [];
+        var polygonsY = [];
+        var cells = [];
+        this.populatePolygonsAndCells(polygonsX, polygonsY, cells);
+
+        var halfWith = this.config.width / 2;
+        var halfHeight = this.config.height / 2;
+
+        var size = this.config.width * this.config.height;
+        var data = new Object();
+        data.elevations = new Uint8Array(size);
+        data.biomes = new Array(size);
+
+        for (var i = 0; i < size; i++) {
+            data.elevations[i] = 0; // by default is 0
+            data.biomes[i] = "OCEAN"; // by default is OCEAN
+            var point = [i % this.config.width, Math.floor(i / this.config.height)];
+
+            for (var cll = 0, numCells = cells.length; cll < numCells; cll++) {
+                if (this.isPointInPolygon(point[0], point[1], polygonsX[cll], polygonsY[cll])) {
+                    data.elevations[i] = cells[cll].realElevation * 10;
+                    data.biomes[i] = cells[cll].biome;
+                    break;
+                }
+            }
+        }
+
+        return data;
+    },
+
+    generateTexture: function(data, width, height) {
+        var canvas, canvasScaled, context, image, imageData,
+        level, diff, vector3, sun, shade;
+
+        vector3 = new THREE.Vector3(0, 0, 0);
+
+        sun = new THREE.Vector3(1, 1, 1);
+        sun.normalize();
+
+        canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        context = canvas.getContext('2d');
+        context.fillStyle = '#000';
+        context.fillRect(0, 0, width, height);
+
+        image = context.getImageData(0, 0, canvas.width, canvas.height);
+        imageData = image.data;
+
+        for (var i = 0, j = 0, l = imageData.length; i < l; i += 4, j++) {
+            
+            vector3.x = data.elevations[j - 2] - data.elevations[j + 2];
+            vector3.y = 2;
+            vector3.z = data.elevations[j - width * 2] - data.elevations[j + width * 2];
+            vector3.normalize();
+
+            shade = vector3.dot(sun);
+            
+            imageData[i] = THREE_COLORS[data.biomes[j]].r * 255 * shade;  //(96 + shade * 128) * (0.5 + data.elevations[j] * 0.007);
+            imageData[i + 1] = THREE_COLORS[data.biomes[j]].g * 255 * shade; //(32 + shade * 96) * (0.5 + data.elevations[j] * 0.007);
+            imageData[i + 2] = THREE_COLORS[data.biomes[j]].b * 255 * shade; //(shade * 96) * (0.5 + data.elevations[j] * 0.007);
+        }
+
+        context.putImageData(image, 0, 0);
+
+        // Scaled 4x
+
+        canvasScaled = document.createElement('canvas');
+        canvasScaled.width = width * 4;
+        canvasScaled.height = height * 4;
+
+        context = canvasScaled.getContext('2d');
+        context.scale(4, 4);
+        context.drawImage(canvas, 0, 0);
+
+        image = context.getImageData(0, 0, canvasScaled.width, canvasScaled.height);
+        imageData = image.data;
+
+        for (var i = 0, l = imageData.length; i < l; i += 4) {
+
+            var v = ~~(Math.random() * 5);
+
+            imageData[i] += v;
+            imageData[i + 1] += v;
+            imageData[i + 2] += v;
+
+        }
+
+        context.putImageData(image, 0, 0);
+
+        return canvasScaled;
+    },
+
+    isPointInPolygon: function (x, y, cornersX, cornersY) {
+        var i, j = cornersX.length - 1;
+        var oddNodes = false;
+
+        var polyX = cornersX;
+        var polyY = cornersY;
+
+        for (i = 0; i < cornersX.length; i++) {
+            if ((polyY[i] < y && polyY[j] >= y || polyY[j] < y && polyY[i] >= y) && (polyX[i] <= x || polyX[j] <= x)) {
+                oddNodes ^= (polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]) < x);
+            }
+            j = i;
+        }
+
+        return oddNodes;
     }
 }
 
