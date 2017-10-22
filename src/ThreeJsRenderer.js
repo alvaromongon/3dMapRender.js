@@ -55,7 +55,7 @@ var ThreeJsRenderer = {
         this.camera = new THREE.PerspectiveCamera(75, 1, 1, 10000);
         this.camera.position.x = 0;
         this.camera.position.y = 0;
-        this.camera.position.z = 200;
+        this.camera.position.z = this.config.width * 4;
         this.scene.add(this.camera);
 
         // Light
@@ -69,19 +69,13 @@ var ThreeJsRenderer = {
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas});
-        this.renderer.setSize(this.config.width*2, this.config.height*2);
+        this.renderer.setSize(this.config.width*4, this.config.height*4);
         //this.renderer.physicallyCorrectLights = true;
         //this.renderer.gammaInput = true;
         //this.renderer.gammaOutput = true;
         //this.renderer.shadowMap.enabled = true;
         //this.renderer.toneMapping = THREE.ReinhardToneMapping;
-        
-        // Cells
-        //var group = new THREE.Group();        
-        //this.renderCells(group);
-        //this.scene.add(group);
 
-        //var plane = this.renderHeightMap();
         var plane = this.renderMap(); 
         this.scene.add(plane);
 
@@ -107,104 +101,23 @@ var ThreeJsRenderer = {
         bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));    
         bulbLight.position.x = 0;
         bulbLight.position.y = 0;
-        bulbLight.position.z = 300;
+        bulbLight.position.z = this.config.width * 4;
         bulbLight.castShadow = true;
 
         return bulbLight;
-    },
-
-    renderHeightMap: function () {
-        // The idea is to create an height map from the voronoi data we have
-        // http://blog.mastermaps.com/2013/10/terrain-building-with-threejs.html
-        // https://codepen.io/Fusty/pen/GJvdWe
-
-        // Create polygons Paths
-        var polygonsX = [];
-        var polygonsY = [];
-        var cells = [];
-        this.populatePolygonsAndCells(polygonsX, polygonsY, cells);
-        
-        // Create the texture
-        // https://codepen.io/SereznoKot/pen/vNjJWd
-        // https://github.com/mrdoob/three.js/issues/486
-        /*
-        var side = this.config.width * this.config.height; // power of two textures are better cause powers of two are required by some algorithms. Like ones that decide what color will pixel have if amount of pixels is less than amount of textels (see three.js console error when given non-power-of-two texture)
-        var amount = Math.pow(side, 2); // you need 4 values for every pixel in side*side plane
-        var data = new Uint8Array(amount);
-        for (var i = 0; i < amount; i++) {
-            data[i] = Math.random() * 256; // generates random r,g,b,a values from 0 to 1
-        }
-        */
-        
-
-        // Create geometry
-        var geometry = new THREE.PlaneBufferGeometry(this.config.width, this.config.height, this.config.width - 1, this.config.height - 1);
-        var vertices = geometry.attributes.position.array;
-
-        // Set altitudes
-        var halfWith = this.config.width / 2;
-        var halfHeight = this.config.height / 2;
-        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j += 4) {
-            vertices[i+2] = 0; // by default is 0
-            var point = [vertices[i] + halfWith, vertices[i + 1] + halfHeight];
-            console.log("Evaluating point (" + point[0] + "," + point[1] + ")");
-
-            for (var cll = 0, numCells = cells.length; cll < numCells; cll++) {
-                if (this.isPointInPolygon(point[0], point[1], polygonsX[cll], polygonsY[cll])) {
-                    vertices[i+2] = cells[cll].realElevation * 100;
-                    // geometry.vertices[i].z = data[i] / 65535 * 10;
-                    break;
-                }
-            }
-        }
-        /*
-        var texture = new THREE.DataTexture(data, side, side, THREE.LuminanceFormat, THREE.UnsignedByteType);
-        texture.needsUpdate = true;
-        var material = new THREE.MeshBasicMaterial({ color: THREE_COLORS["OCEAN"], alphaMap: texture, transparent: false });
-        */
-        var material = new THREE.MeshPhongMaterial({
-            color: THREE_COLORS["GRASSLAND"],
-            wireframe: true
-        });
-        return new THREE.Mesh(geometry, material);
-    },
-
-    renderCells: function (group) {
-        // Add a layer?
-        for (var cellid in this.diagram.cells) {
-            var cell = this.diagram.cells[cellid];
-            var color = THREE_COLORS[cell.biome].clone();
-            
-            var cellPoints = [];            
-            var start = cell.halfedges[0].getStartpoint();
-            cellPoints.push(new THREE.Vector2(start.x, start.y));
-            for (var iHalfedge = 0; iHalfedge < cell.halfedges.length; iHalfedge++) {
-                var halfEdge = cell.halfedges[iHalfedge];
-                var end = halfEdge.getEndpoint();
-                cellPoints.push(new THREE.Vector2(end.x, end.y));
-            }
-            var cellShape = new THREE.Shape(cellPoints);
-            cellShape.autoClose = true; //just in case
-            var cellGeometry = new THREE.ShapeBufferGeometry(cellShape);
-            var cellMesh = new THREE.Mesh(cellGeometry, new THREE.MeshPhongMaterial({ color: color, side: THREE.DoubleSide }));
-            //cellMesh.position.set(cell.site.x, cell.site.y, 0);
-            //mesh.rotation.set(rx, ry, rz);
-            //mesh.scale.set(s, s, s);
-            group.add(cellMesh);
-        }
     },
 
     renderMap: function () {
         var data = this.generateHeight();
 
         // var geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 ); ????
-        var geometry = new THREE.PlaneBufferGeometry(this.config.width, this.config.height, this.config.width - 1, this.config.height - 1);
+        var geometry = new THREE.PlaneBufferGeometry(this.config.width*4, this.config.height*4, this.config.width - 1, this.config.height - 1);
         //geometry.rotateX(- Math.PI / 2);
 
         // Set altitudes
         var vertices = geometry.attributes.position.array;
         for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3 , j ++) {
-            vertices[i + 2] = data.elevations[j] * 10;
+            vertices[i + 2] = data.elevations[j] * 100;
         }
 
         texture = new THREE.CanvasTexture(this.generateTexture(data, this.config.width, this.config.height));
@@ -251,7 +164,7 @@ var ThreeJsRenderer = {
 
         var size = this.config.width * this.config.height;
         var data = new Object();
-        data.elevations = new Uint8Array(size);
+        data.elevations = new Array(size);
         data.biomes = new Array(size);
 
         for (var i = 0; i < size; i++) {
@@ -261,7 +174,8 @@ var ThreeJsRenderer = {
 
             for (var cll = 0, numCells = cells.length; cll < numCells; cll++) {
                 if (this.isPointInPolygon(point[0], point[1], polygonsX[cll], polygonsY[cll])) {
-                    data.elevations[i] = cells[cll].realElevation * 10;
+                    //data.elevations[i] = cells[cll].realElevation;
+                    data.elevations[i] = this.calculatePointRealElevation(point, cells[cll]);
                     data.biomes[i] = cells[cll].biome;
                     break;
                 }
@@ -333,6 +247,34 @@ var ThreeJsRenderer = {
         context.putImageData(image, 0, 0);
 
         return canvasScaled;
+    },
+
+    calculatePointRealElevation: function (point, cell) {
+        var distanceToOwnSite = this.calculate2dDistance(point, [cell.site.x, cell.site.y]);
+        var ownSiteRealElevation = cell.realElevation;
+
+        var distanceToClosestSites = 999999;
+        var closestSiteRealElevation = 0;
+
+        var neighbors = cell.getNeighborIds();
+        for (var j = 0; j < neighbors.length; j++) {
+            var neighborCell = this.diagram.cells[neighbors[j]];
+
+            var distanceToNeighborSite = this.calculate2dDistance(point, [neighborCell.site.x, neighborCell.site.y]);
+            if (distanceToNeighborSite < distanceToClosestSites) {
+                distanceToClosestSites = distanceToNeighborSite;
+                closestSiteRealElevation = neighborCell.realElevation;
+            }
+        }
+
+        return ((1-(distanceToOwnSite / (distanceToOwnSite + distanceToClosestSites))) * ownSiteRealElevation) +
+            ((1-(distanceToClosestSites / (distanceToOwnSite + distanceToClosestSites))) * closestSiteRealElevation);
+    },
+
+    calculate2dDistance: function (point1, point2) {
+        var a = point1[0] - point2[0];
+        var b = point1[1] - point2[1];
+        return Math.sqrt(a * a + b * b);
     },
 
     isPointInPolygon: function (x, y, cornersX, cornersY) {
