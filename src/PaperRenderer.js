@@ -1,3 +1,5 @@
+// Based on original version created by Lebesnec
+// https://github.com/lebesnec/island.js
 var PAPER_COLORS = {
     OCEAN: new paper.Color('#82caff'),
     BEACH: new paper.Color('#ffe98d'),

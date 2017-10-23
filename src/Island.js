@@ -1,3 +1,5 @@
+// Created by Lebesnec
+// https://github.com/lebesnec/island.js
 var Island = {
     config: {
         width: 500,

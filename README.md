@@ -1,2 +1,4 @@
 # 3dMapRender.js
-Simple wrapper for 3d map rendering using babylon.js
+Simple 3d map renderer using three.js.
+
+Based on the work done by lebesnec on the repository: https://github.com/lebesnec/island.js
