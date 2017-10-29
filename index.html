@@ -37,12 +37,12 @@
             }; 
 
         var userConfig = {
-            width: 256,
-            height: 256,
+            width: 512,
+            height: 512,
             perlinWidth: 256,
             perlinHeight: 256,
             allowDebug: true, // if set to true, you can clic on the map to enter "debug" mode. Warning : debug mode is slow to initialize, set to false for faster rendering.
-            nbSites: 1000, //10000, // nb of voronoi cell
+            nbSites: 10000, //10000, // nb of voronoi cell
             sitesDistribution: 'hexagon', // distribution of the site : random, square or hexagon
             sitesRandomisation: 80, // will move each site in a random way (in %), for the square or hexagon distribution to look more random
             nbGraphRelaxation: 0, // nb of time we apply the relaxation algo to the voronoi graph (slow !), for the random distribution to look less random

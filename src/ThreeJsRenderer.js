@@ -76,8 +76,7 @@ var ThreeJsRenderer = {
         //this.renderer.shadowMap.enabled = true;
         //this.renderer.toneMapping = THREE.ReinhardToneMapping;
 
-        var plane = this.renderMap(); 
-        this.scene.add(plane);
+        var plane = this.renderMap();         
 
         // Controls
         var controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -108,35 +107,105 @@ var ThreeJsRenderer = {
     },
 
     renderMap: function () {
-        var data = this.generateHeight();
+        var metadata = this.generateMapMetadata();
 
+        var elevationMultiplayer = 100;
+
+        var terrain = this.renderTerrain(metadata, elevationMultiplayer);
+        this.scene.add(terrain);
+    },  
+
+    renderTerrain: function (metadata, elevationMultiplayer) {
         // var geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 ); ????
-        var geometry = new THREE.PlaneBufferGeometry(this.config.width*4, this.config.height*4, this.config.width - 1, this.config.height - 1);
+        var geometry = new THREE.PlaneBufferGeometry(this.config.width * 4, this.config.height * 4, this.config.width - 1, this.config.height - 1);
         //geometry.rotateX(- Math.PI / 2);
 
         // Set altitudes
         var vertices = geometry.attributes.position.array;
-        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3 , j ++) {
-            vertices[i + 2] = data.elevations[j] * 100;
+        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j++) {
+            vertices[i + 2] = metadata.elevations[j] * elevationMultiplayer;
         }
 
-        texture = new THREE.CanvasTexture(this.generateTexture(data, this.config.width, this.config.height));
+        texture = new THREE.CanvasTexture(this.generateTexture(metadata, this.config.width, this.config.height));
         texture.wrapS = THREE.ClampToEdgeWrapping;
         texture.wrapT = THREE.ClampToEdgeWrapping;
 
         return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture }));
+    },  
+
+    ///
+    /// Generate heights, biome for each point in the plane plus rivers points for the whole map
+    ///
+    generateMapMetadata: function () {
+        var voronoiMap = this.processVoronoiDiagram();
+
+        var halfWith = this.config.width / 2;
+        var halfHeight = this.config.height / 2;
+        var size = this.config.width * this.config.height;
+
+        var data = new Object();
+        data.elevations = new Array(size);
+        data.biomes = new Array(size);
+        data.rivers = new Array(0);
+        data.riverPaths = voronoiMap.riverPaths;
+            
+        // For each point in the plane set elevation and biomes
+        for (var i = 0; i < size; i++) {
+            data.elevations[i] = 0; // by default is 0
+            data.biomes[i] = "OCEAN"; // by default is OCEAN
+            var point = [i % this.config.width, Math.floor(i / this.config.height)];
+
+            // Search the polygon in the voronoi where the point is and calculate elevation and biome
+            for (var cll = 0, numCells = voronoiMap.terrainCells.length; cll < numCells; cll++) {
+                // TODO: Should we calculate point polygon like this or just by nearest nbSite?
+                if (this.isPointInPolygon(point[0], point[1], voronoiMap.polygonsX[cll], voronoiMap.polygonsY[cll])) {
+                    data.elevations[i] = this.calculatePointRealElevation(point, voronoiMap.terrainCells[cll]);
+                    data.biomes[i] = voronoiMap.terrainCells[cll].biome;                    
+                    break;
+                }
+            }
+
+            // Search if the point is contained in any of the river lines
+            var found = false;
+            for (var j = 0, numRivers = data.riverPaths.length; !found && j < numRivers; j++) {  
+                for (var k = 0, numPoints = data.riverPaths[j].length; k < numPoints - 1; k++) {
+                    var distance = this.pointDistanceToLine(point[0], point[1], data.riverPaths[j][k][0], data.riverPaths[j][k][1], data.riverPaths[j][k + 1][0], data.riverPaths[j][k + 1][1]);
+                    if (distance < 1)                    
+                    {
+                        data.biomes[i] = "RIVER";
+
+                        console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
+                        found = true;
+                        break;
+                    }                    
+                }
+            }
+        }
+
+        return data;
     },
 
-    populatePolygonsAndCells(polygonsX, polygonsY, cells) {
+    /// 
+    /// Process voronoi diagram to create a more adecuated for 3d rendering data structure
+    ///
+    processVoronoiDiagram: function() {
+        var voronoiMap = new Object();
+        voronoiMap.polygonsX = [];
+        voronoiMap.polygonsY = [];
+        voronoiMap.terrainCells = [];
+        voronoiMap.riverPaths = [];
+
         for (var cellid in this.diagram.cells) {
-            var polygonX = [];
-            var polygonY = [];
-            var cell = this.diagram.cells[cellid];
+            var polygonX = []; //polygon X coordinates for this cell
+            var polygonY = []; //polygon Y coordinates for this cell            
+            var cell = this.diagram.cells[cellid]; // this cell
 
             // No need to process the ocean cells, the elevation there can be set to a fix number
             if (cell.ocean) {
                 continue;
             }
+
+            // Build voronoi polygons information
             var start = cell.halfedges[0].getStartpoint();
             polygonX.push(start.x);
             polygonY.push(start.y);
@@ -146,43 +215,40 @@ var ThreeJsRenderer = {
                 polygonX.push(end.x);
                 polygonY.push(end.y);
             }
-            cells.push(cell);
-            polygonsX.push(polygonX);
-            polygonsY.push(polygonY);
-        }
-    },
+            // Add polygons to voronoi map
+            voronoiMap.terrainCells.push(cell);
+            voronoiMap.polygonsX.push(polygonX);
+            voronoiMap.polygonsY.push(polygonY);
 
-    generateHeight: function () {
-        // Create polygons Paths
-        var polygonsX = [];
-        var polygonsY = [];
-        var cells = [];
-        this.populatePolygonsAndCells(polygonsX, polygonsY, cells);
-
-        var halfWith = this.config.width / 2;
-        var halfHeight = this.config.height / 2;
-
-        var size = this.config.width * this.config.height;
-        var data = new Object();
-        data.elevations = new Array(size);
-        data.biomes = new Array(size);
-
-        for (var i = 0; i < size; i++) {
-            data.elevations[i] = 0; // by default is 0
-            data.biomes[i] = "OCEAN"; // by default is OCEAN
-            var point = [i % this.config.width, Math.floor(i / this.config.height)];
-
-            for (var cll = 0, numCells = cells.length; cll < numCells; cll++) {
-                if (this.isPointInPolygon(point[0], point[1], polygonsX[cll], polygonsY[cll])) {
-                    //data.elevations[i] = cells[cll].realElevation;
-                    data.elevations[i] = this.calculatePointRealElevation(point, cells[cll]);
-                    data.biomes[i] = cells[cll].biome;
-                    break;
+            // Build river paths if needed
+            if (cell.nextRiver) {
+                var riverPath = []; // river path points
+                //riverPath.strokeWidth = Math.min(cell.riverSize, this.config.maxRiversSize);
+                var x, y;
+                if (cell.water) {                    
+                    x = cell.site.x + (cell.nextRiver.site.x - cell.site.x) / 2;
+                    y = cell.site.y + (cell.nextRiver.site.y - cell.site.y) / 2;
+                } else {
+                    x = cell.site.x;
+                    y = cell.site.y;
+                    
                 }
+                riverPath.push([x, y])
+
+                if (cell.nextRiver && !cell.nextRiver.water) {
+                    x = cell.nextRiver.site.x;
+                    y = cell.nextRiver.site.y;
+                } else {
+                    x = cell.site.x + (cell.nextRiver.site.x - cell.site.x) / 2;
+                    y = cell.site.y + (cell.nextRiver.site.y - cell.site.y) / 2;
+                }
+                riverPath.push([x, y])
+
+                voronoiMap.riverPaths.push(riverPath);
             }
         }
 
-        return data;
+        return voronoiMap;
     },
 
     generateTexture: function(data, width, height) {
@@ -292,7 +358,40 @@ var ThreeJsRenderer = {
         }
 
         return oddNodes;
-    }
+    },
+
+    pointDistanceToLine: function (x, y, x1, y1, x2, y2) {
+
+        var A = x - x1;
+        var B = y - y1;
+        var C = x2 - x1;
+        var D = y2 - y1;
+
+        var dot = A * C + B * D;
+        var len_sq = C * C + D * D;
+        var param = -1;
+        if (len_sq != 0) //in case of 0 length line
+            param = dot / len_sq;
+
+        var xx, yy;
+
+        if (param < 0) {
+            xx = x1;
+            yy = y1;
+        }
+        else if (param > 1) {
+            xx = x2;
+            yy = y2;
+        }
+        else {
+            xx = x1 + param * C;
+            yy = y1 + param * D;
+        }
+
+        var dx = x - xx;
+        var dy = y - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    },  
 }
 
 function animate() {
