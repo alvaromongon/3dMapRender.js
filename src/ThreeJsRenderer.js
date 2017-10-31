@@ -174,7 +174,7 @@ var ThreeJsRenderer = {
                     {
                         data.biomes[i] = "RIVER";
 
-                        console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
+                        //console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
                         found = true;
                         break;
                     }                    
