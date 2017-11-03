@@ -167,18 +167,18 @@ var ThreeJsRenderer = {
 
             // Search if the point is contained in any of the river lines
             var found = false;
-            for (var j = 0, numRivers = data.riverPaths.length; !found && j < numRivers; j++) {  
-                for (var k = 0, numPoints = data.riverPaths[j].length; k < numPoints - 1; k++) {
-                    var distance = this.pointDistanceToLine(point[0], point[1], data.riverPaths[j][k][0], data.riverPaths[j][k][1], data.riverPaths[j][k + 1][0], data.riverPaths[j][k + 1][1]);
-                    if (distance < 1)                    
-                    {
-                        data.biomes[i] = "RIVER";
+            for (var j = 0, numSegments = data.riverPaths.length; j < numSegments; j++) {  
+                var distance = this.pointDistanceToLine(
+                    point[0], point[1],
+                    data.riverPaths[j].x1, data.riverPaths[j].y1,
+                    data.riverPaths[j].x2, data.riverPaths[j].y2);
+                if (distance < 1) {
+                    data.biomes[i] = "RIVER";
 
-                        //console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
-                        found = true;
-                        break;
-                    }                    
-                }
+                    //console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
+                    found = true;
+                    break;
+                } 
             }
         }
 
@@ -222,8 +222,8 @@ var ThreeJsRenderer = {
 
             // Build river paths if needed
             if (cell.nextRiver) {
-                var riverPath = []; // river path points
-                //riverPath.strokeWidth = Math.min(cell.riverSize, this.config.maxRiversSize);
+                var riverSegment = new Object();
+                //riverSegment.width = Math.min(cell.riverSize, this.config.maxRiversSize);
                 var x, y;
                 if (cell.water) {                    
                     x = cell.site.x + (cell.nextRiver.site.x - cell.site.x) / 2;
@@ -233,7 +233,8 @@ var ThreeJsRenderer = {
                     y = cell.site.y;
                     
                 }
-                riverPath.push([x, y])
+                riverSegment.x1 = x;
+                riverSegment.y1 = y;
 
                 if (cell.nextRiver && !cell.nextRiver.water) {
                     x = cell.nextRiver.site.x;
@@ -242,9 +243,10 @@ var ThreeJsRenderer = {
                     x = cell.site.x + (cell.nextRiver.site.x - cell.site.x) / 2;
                     y = cell.site.y + (cell.nextRiver.site.y - cell.site.y) / 2;
                 }
-                riverPath.push([x, y])
+                riverSegment.x2 = x;
+                riverSegment.y2 = y;
 
-                voronoiMap.riverPaths.push(riverPath);
+                voronoiMap.riverPaths.push(riverSegment);
             }
         }
 
