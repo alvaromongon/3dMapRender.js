@@ -109,15 +109,18 @@ var ThreeJsRenderer = {
     renderMap: function () {
         var metadata = this.generateMapMetadata();
 
-        var elevationMultiplayer = 200;
+        var sizeMultiplayer = 4;
+        var elevationMultiplayer = this.config.width * 0.4;
 
-        var terrain = this.renderTerrain(metadata, elevationMultiplayer);
+        var terrain = this.renderTerrain(metadata, elevationMultiplayer, sizeMultiplayer);
         this.scene.add(terrain);
     },  
 
-    renderTerrain: function (metadata, elevationMultiplayer) {
+    renderTerrain: function (metadata, elevationMultiplayer, sizeMultiplayer) {
         // var geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 ); ????
-        var geometry = new THREE.PlaneBufferGeometry(this.config.width * 4, this.config.height * 4, this.config.width - 1, this.config.height - 1);
+        var geometry = new THREE.PlaneBufferGeometry(
+            this.config.width * sizeMultiplayer, this.config.height * sizeMultiplayer,
+            this.config.width - 1, this.config.height - 1);
         //geometry.rotateX(- Math.PI / 2);
 
         // Set altitudes
