@@ -109,7 +109,7 @@ var ThreeJsRenderer = {
     renderMap: function () {
         var metadata = this.generateMapMetadata();
 
-        var elevationMultiplayer = 100;
+        var elevationMultiplayer = 200;
 
         var terrain = this.renderTerrain(metadata, elevationMultiplayer);
         this.scene.add(terrain);
@@ -139,44 +139,51 @@ var ThreeJsRenderer = {
     generateMapMetadata: function () {
         var voronoiMap = this.processVoronoiDiagram();
 
-        var halfWith = this.config.width / 2;
-        var halfHeight = this.config.height / 2;
         var size = this.config.width * this.config.height;
 
         var data = new Object();
         data.elevations = new Array(size);
         data.biomes = new Array(size);
-        data.rivers = new Array(0);
-        data.riverPaths = voronoiMap.riverPaths;
             
         // For each point in the plane set elevation and biomes
         for (var i = 0; i < size; i++) {
-            data.elevations[i] = 0; // by default is 0
-            data.biomes[i] = "OCEAN"; // by default is OCEAN
             var point = [i % this.config.width, Math.floor(i / this.config.height)];
 
-            // Search the polygon in the voronoi where the point is and calculate elevation and biome
+            // Search the voronoi polygon where the point is located
+            // Since we only look for in terrain cells, we need to filter out the under level water points
+            var distanceToClosetSite = this.config.width;
+            var closetTerrainCell = null;
             for (var cll = 0, numCells = voronoiMap.terrainCells.length; cll < numCells; cll++) {
-                // TODO: Should we calculate point polygon like this or just by nearest nbSite?
-                if (this.isPointInPolygon(point[0], point[1], voronoiMap.polygonsX[cll], voronoiMap.polygonsY[cll])) {
-                    data.elevations[i] = this.calculatePointRealElevation(point, voronoiMap.terrainCells[cll]);
-                    data.biomes[i] = voronoiMap.terrainCells[cll].biome;                    
-                    break;
+                var distance = this.calculate2dDistance(point,
+                    [voronoiMap.terrainCells[cll].site.x, voronoiMap.terrainCells[cll].site.y]);
+                if (distance < distanceToClosetSite) {
+                    distanceToClosetSite = distance;
+                    closetTerrainCell = voronoiMap.terrainCells[cll];
                 }
             }
+            if (closetTerrainCell != null) {
+                var pointRealElevation = this.calculatePointRealElevation(point, closetTerrainCell, distanceToClosetSite);
+                if (pointRealElevation < 0) {
+                    data.elevations[i] = 0; // by default is 0
+                    data.biomes[i] = "OCEAN"; // by default is OCEAN
+                    continue;
+                }
+                data.elevations[i] = pointRealElevation;
+                data.biomes[i] = closetTerrainCell.biome;
+            }
+            else {
+                console.log("Impossible to find a closet terrain cell for the given point. This should never happens");
+            }
 
-            // Search if the point is contained in any of the river lines
-            var found = false;
-            for (var j = 0, numSegments = data.riverPaths.length; j < numSegments; j++) {  
+            // Search if the point is contained in any of the river segments and assign RIVER biome
+            for (var j = 0, numSegments = voronoiMap.riverPaths.length; j < numSegments; j++) {  
                 var distance = this.pointDistanceToLine(
                     point[0], point[1],
-                    data.riverPaths[j].x1, data.riverPaths[j].y1,
-                    data.riverPaths[j].x2, data.riverPaths[j].y2);
+                    voronoiMap.riverPaths[j].x1, voronoiMap.riverPaths[j].y1,
+                    voronoiMap.riverPaths[j].x2, voronoiMap.riverPaths[j].y2);
                 if (distance < 1) {
                     data.biomes[i] = "RIVER";
-
                     //console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
-                    found = true;
                     break;
                 } 
             }
@@ -190,35 +197,17 @@ var ThreeJsRenderer = {
     ///
     processVoronoiDiagram: function() {
         var voronoiMap = new Object();
-        voronoiMap.polygonsX = [];
-        voronoiMap.polygonsY = [];
         voronoiMap.terrainCells = [];
         voronoiMap.riverPaths = [];
 
-        for (var cellid in this.diagram.cells) {
-            var polygonX = []; //polygon X coordinates for this cell
-            var polygonY = []; //polygon Y coordinates for this cell            
+        for (var cellid in this.diagram.cells) {        
             var cell = this.diagram.cells[cellid]; // this cell
 
-            // No need to process the ocean cells, the elevation there can be set to a fix number
+            // Only process the terrain cells
             if (cell.ocean) {
                 continue;
             }
-
-            // Build voronoi polygons information
-            var start = cell.halfedges[0].getStartpoint();
-            polygonX.push(start.x);
-            polygonY.push(start.y);
-            for (var iHalfedge = 0; iHalfedge < cell.halfedges.length - 1; iHalfedge++) {
-                var halfEdge = cell.halfedges[iHalfedge];
-                var end = halfEdge.getEndpoint();
-                polygonX.push(end.x);
-                polygonY.push(end.y);
-            }
-            // Add polygons to voronoi map
             voronoiMap.terrainCells.push(cell);
-            voronoiMap.polygonsX.push(polygonX);
-            voronoiMap.polygonsY.push(polygonY);
 
             // Build river paths if needed
             if (cell.nextRiver) {
@@ -317,8 +306,7 @@ var ThreeJsRenderer = {
         return canvasScaled;
     },
 
-    calculatePointRealElevation: function (point, cell) {
-        var distanceToOwnSite = this.calculate2dDistance(point, [cell.site.x, cell.site.y]);
+    calculatePointRealElevation: function (point, cell, distanceToOwnSite) {
         var ownSiteRealElevation = cell.realElevation;
 
         var distanceToClosestSites = 999999;
@@ -343,24 +331,7 @@ var ThreeJsRenderer = {
         var a = point1[0] - point2[0];
         var b = point1[1] - point2[1];
         return Math.sqrt(a * a + b * b);
-    },
-
-    isPointInPolygon: function (x, y, cornersX, cornersY) {
-        var i, j = cornersX.length - 1;
-        var oddNodes = false;
-
-        var polyX = cornersX;
-        var polyY = cornersY;
-
-        for (i = 0; i < cornersX.length; i++) {
-            if ((polyY[i] < y && polyY[j] >= y || polyY[j] < y && polyY[i] >= y) && (polyX[i] <= x || polyX[j] <= x)) {
-                oddNodes ^= (polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]) < x);
-            }
-            j = i;
-        }
-
-        return oddNodes;
-    },
+    },    
 
     pointDistanceToLine: function (x, y, x1, y1, x2, y2) {
 
@@ -394,6 +365,26 @@ var ThreeJsRenderer = {
         var dy = y - yy;
         return Math.sqrt(dx * dx + dy * dy);
     },  
+
+    ///
+    /// This method is not being used anymore
+    ///
+    isPointInPolygon: function (x, y, cornersX, cornersY) {
+        var i, j = cornersX.length - 1;
+        var oddNodes = false;
+
+        var polyX = cornersX;
+        var polyY = cornersY;
+
+        for (i = 0; i < cornersX.length; i++) {
+            if ((polyY[i] < y && polyY[j] >= y || polyY[j] < y && polyY[i] >= y) && (polyX[i] <= x || polyX[j] <= x)) {
+                oddNodes ^= (polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]) < x);
+            }
+            j = i;
+        }
+
+        return oddNodes;
+    },
 }
 
 function animate() {
