@@ -13,6 +13,9 @@
         <script type="text/javascript" src="src/libraries/paper.js"></script>
 
         <script type="text/javascript" src="src/libraries/three.js"></script>
+        <script type="text/javascript" src="src/libraries/water2.js"></script>
+        <script type="text/javascript" src="src/libraries/Reflector.js"></script>
+        <script type="text/javascript" src="src/libraries/Refractor.js"></script>
         <script type="text/javascript" src="src/libraries/OrbitControls.js"></script>
 
         <script type="text/javascript" src="src/Island.js"></script>
@@ -24,6 +27,39 @@
         <canvas id="paperCanvas" resize="true"></canvas>
         <canvas id="perlinNoiseCanvas" hidden="true"></canvas>
         <canvas id="threeJsCanvas" resize="true"></canvas>
+
+        <script type="x-shader/x-vertex" id="vertexShader">
+
+            varying vec3 vWorldPosition;
+
+            void main() {
+
+            vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
+            vWorldPosition = worldPosition.xyz;
+
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+            }
+
+        </script>
+
+        <script type="x-shader/x-fragment" id="fragmentShader">
+
+            uniform vec3 topColor;
+            uniform vec3 bottomColor;
+            uniform float offset;
+            uniform float exponent;
+
+            varying vec3 vWorldPosition;
+
+            void main() {
+
+            float h = normalize( vWorldPosition + offset ).y;
+            gl_FragColor = vec4( mix( bottomColor, topColor, max( pow( max( h , 0.0), exponent ), 0.0 ) ), 1.0 );
+
+            }
+
+        </script>
         
         <script type="application/javascript">
         window.onload = function(e) {
@@ -37,8 +73,8 @@
             };
 
         var userConfig = {
-            width: 512,
-            height: 512,
+            width: 256,
+            height: 256,
             perlinWidth: 256,
             perlinHeight: 256,
             allowDebug: true, // if set to true, you can clic on the map to enter "debug" mode. Warning : debug mode is slow to initialize, set to false for faster rendering.
@@ -48,7 +84,7 @@
             nbGraphRelaxation: 0, // nb of time we apply the relaxation algo to the voronoi graph (slow !), for the random distribution to look less random
             cliffsThreshold: 0.15,
             lakesThreshold: 0.005, // lake elevation will increase by this value (* the river size) when a new river end inside
-            nbRivers: 50, //(10000 / 200),
+            nbRivers: 0, //(10000 / 200),
             maxRiversSize: 4,
             shading: 0.35,
             shadeOcean: true

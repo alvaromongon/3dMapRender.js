@@ -45,51 +45,100 @@ var ThreeJsRenderer = {
         this.sites = sites;
         this.config = config;
 
+        var sizeMultiplayer = 4;
+
         // Scene
         this.scene = new THREE.Scene();
-        //this.scene.background = new THREE.Color(0xcce0ff);
-        //this.scene.fog = new THREE.Fog(0xcce0ff, 500, 10000);
-        //this.scene.add(new THREE.AmbientLight(0x666666));
+        this.scene.background = new THREE.Color().setHSL(0.6, 0, 1);
+        this.scene.fog = new THREE.Fog(this.scene.background, 1, 5000);
 
-        // Camera
-        this.camera = new THREE.PerspectiveCamera(75, 1, 1, 10000);
+        // Camera 
+        this.camera = new THREE.PerspectiveCamera(75, 1, 1, 10000); // (fov, aspect, near, far)
         this.camera.position.x = 0;
-        this.camera.position.y = 0;
-        this.camera.position.z = this.config.width * 4;
+        this.camera.position.y = this.config.width * sizeMultiplayer;
+        this.camera.position.z = 0;
         this.scene.add(this.camera);
 
-        // Light
-        this.light = this.renderLight();
-        this.scene.add(this.light);
-
-        // Ground
-        //var groundMaterial = new THREE.MeshPhongMaterial({ color: THREE_COLORS.OCEAN.clone(), side: THREE.DoubleSide })
-        //var groundMesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(this.config.width, this.config.height), groundMaterial);
-        //this.scene.add(groundMesh);
-
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas});
-        this.renderer.setSize(this.config.width*4, this.config.height*4);
+        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+        this.renderer.setSize(this.config.width * sizeMultiplayer, this.config.height * sizeMultiplayer);
         //this.renderer.physicallyCorrectLights = true;
         //this.renderer.gammaInput = true;
         //this.renderer.gammaOutput = true;
         //this.renderer.shadowMap.enabled = true;
         //this.renderer.toneMapping = THREE.ReinhardToneMapping;
 
-        var plane = this.renderMap();         
+        this.renderMap(sizeMultiplayer);
+        this.renderSkyBox();
+        this.renderLight();
 
         // Controls
         var controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         //controls.maxPolarAngle = Math.PI * 0.5;
         controls.minDistance = 1;
-        controls.maxDistance = 7500;
+        controls.maxDistance = this.config.width * sizeMultiplayer;
 
         animate();
 
         console.info("Three render completed");
+    },    
+
+    ///
+    /// Render voronoi map
+    ///
+    renderMap: function (sizeMultiplayer) {
+        var metadata = this.generateMapMetadata();
+        
+        var elevationMultiplayer = this.config.width * 0.4;
+
+        var terrain = this.renderMapTerrain(metadata, elevationMultiplayer, sizeMultiplayer);
+        terrain.rotateX(Math.PI * - 0.5);
+        this.scene.add(terrain);
+
+        var sea = this.renderMapSea(sizeMultiplayer);
+        sea.rotateX(Math.PI * - 0.5);
+        sea.position.y = 0.1
+        this.scene.add(sea);
     },
 
+    ///
+    /// Render skybox
+    ///
+    renderSkyBox: function (sizeMultiplayer) {
+        var hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
+        hemiLight.color.setHSL(0.6, 1, 0.6);
+        hemiLight.groundColor.setHSL(0.095, 1, 0.75);
+        hemiLight.position.set(0, 0, 100);
+        this.scene.add(hemiLight);
+
+        var hemiLightHelper = new THREE.HemisphereLightHelper(hemiLight, 10);
+        this.scene.add(hemiLightHelper);
+
+
+        var vertexShader = document.getElementById('vertexShader').textContent;
+        var fragmentShader = document.getElementById('fragmentShader').textContent;
+        var uniforms = {
+            topColor: { value: new THREE.Color(0x0077ff) },
+            bottomColor: { value: new THREE.Color(0xffffff) },
+            offset: { value: 33 },
+            exponent: { value: 0.6 }
+        };
+        uniforms.topColor.value.copy(hemiLight.color);
+
+        this.scene.fog.color.copy(uniforms.bottomColor.value);
+
+        var skyGeo = new THREE.SphereGeometry(4000, 32, 15); // ( radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength )
+        var skyMat = new THREE.ShaderMaterial({ vertexShader: vertexShader, fragmentShader: fragmentShader, uniforms: uniforms, side: THREE.BackSide });
+
+        var sky = new THREE.Mesh(skyGeo, skyMat);
+        this.scene.add(sky);
+    },
+
+    ///
+    /// Render scene lights
+    ///
     renderLight: function () {
+        /*
         var bulbGeometry = new THREE.SphereGeometry(5, 16, 8);
         bulbLight = new THREE.PointLight(0xffee88, 1, 1000, 2);
         bulbMat = new THREE.MeshStandardMaterial({
@@ -97,44 +146,23 @@ var ThreeJsRenderer = {
             emissiveIntensity: 1,
             color: 0x000000
         });
-        bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));    
+        bulbLight.add(new THREE.Mesh(bulbGeometry, bulbMat));
         bulbLight.position.x = 0;
         bulbLight.position.y = 0;
         bulbLight.position.z = this.config.width * 4;
         bulbLight.castShadow = true;
 
-        return bulbLight;
+        this.scene.add(bulbLight);
+        */
+
+        //this.scene.add(THREE.AmbientLight(0xcccccc, 0.4));
+
+        /*
+        var directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight.position.set(- 1, 1, 1);
+        this.scene.add(directionalLight);
+        */        
     },
-
-    renderMap: function () {
-        var metadata = this.generateMapMetadata();
-
-        var sizeMultiplayer = 4;
-        var elevationMultiplayer = this.config.width * 0.4;
-
-        var terrain = this.renderTerrain(metadata, elevationMultiplayer, sizeMultiplayer);
-        this.scene.add(terrain);
-    },  
-
-    renderTerrain: function (metadata, elevationMultiplayer, sizeMultiplayer) {
-        // var geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 ); ????
-        var geometry = new THREE.PlaneBufferGeometry(
-            this.config.width * sizeMultiplayer, this.config.height * sizeMultiplayer,
-            this.config.width - 1, this.config.height - 1);
-        //geometry.rotateX(- Math.PI / 2);
-
-        // Set altitudes
-        var vertices = geometry.attributes.position.array;
-        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j++) {
-            vertices[i + 2] = metadata.elevations[j] * elevationMultiplayer;
-        }
-
-        texture = new THREE.CanvasTexture(this.generateTexture(metadata, this.config.width, this.config.height));
-        texture.wrapS = THREE.ClampToEdgeWrapping;
-        texture.wrapT = THREE.ClampToEdgeWrapping;
-
-        return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture }));
-    },  
 
     ///
     /// Generate heights, biome for each point in the plane plus rivers points for the whole map
@@ -147,7 +175,7 @@ var ThreeJsRenderer = {
         var data = new Object();
         data.elevations = new Array(size);
         data.biomes = new Array(size);
-            
+
         // For each point in the plane set elevation and biomes
         for (var i = 0; i < size; i++) {
             var point = [i % this.config.width, Math.floor(i / this.config.height)];
@@ -179,7 +207,7 @@ var ThreeJsRenderer = {
             }
 
             // Search if the point is contained in any of the river segments and assign RIVER biome
-            for (var j = 0, numSegments = voronoiMap.riverPaths.length; j < numSegments; j++) {  
+            for (var j = 0, numSegments = voronoiMap.riverPaths.length; j < numSegments; j++) {
                 var distance = this.pointDistanceToLine(
                     point[0], point[1],
                     voronoiMap.riverPaths[j].x1, voronoiMap.riverPaths[j].y1,
@@ -188,7 +216,7 @@ var ThreeJsRenderer = {
                     data.biomes[i] = "RIVER";
                     //console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
                     break;
-                } 
+                }
             }
         }
 
@@ -198,12 +226,12 @@ var ThreeJsRenderer = {
     /// 
     /// Process voronoi diagram to create a more adecuated for 3d rendering data structure
     ///
-    processVoronoiDiagram: function() {
+    processVoronoiDiagram: function () {
         var voronoiMap = new Object();
         voronoiMap.terrainCells = [];
         voronoiMap.riverPaths = [];
 
-        for (var cellid in this.diagram.cells) {        
+        for (var cellid in this.diagram.cells) {
             var cell = this.diagram.cells[cellid]; // this cell
 
             // Only process the terrain cells
@@ -217,13 +245,13 @@ var ThreeJsRenderer = {
                 var riverSegment = new Object();
                 //riverSegment.width = Math.min(cell.riverSize, this.config.maxRiversSize);
                 var x, y;
-                if (cell.water) {                    
+                if (cell.water) {
                     x = cell.site.x + (cell.nextRiver.site.x - cell.site.x) / 2;
                     y = cell.site.y + (cell.nextRiver.site.y - cell.site.y) / 2;
                 } else {
                     x = cell.site.x;
                     y = cell.site.y;
-                    
+
                 }
                 riverSegment.x1 = x;
                 riverSegment.y1 = y;
@@ -245,7 +273,33 @@ var ThreeJsRenderer = {
         return voronoiMap;
     },
 
-    generateTexture: function(data, width, height) {
+    ///
+    /// Render terrain
+    ///
+    renderMapTerrain: function (metadata, elevationMultiplayer, sizeMultiplayer) {
+        // var geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 ); ????
+        var geometry = new THREE.PlaneBufferGeometry(
+            this.config.width * sizeMultiplayer, this.config.height * sizeMultiplayer,
+            this.config.width - 1, this.config.height - 1);
+        //geometry.rotateX(- Math.PI / 2);
+
+        // Set altitudes
+        var vertices = geometry.attributes.position.array;
+        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j++) {
+            vertices[i + 2] = metadata.elevations[j] * elevationMultiplayer;
+        }
+
+        texture = new THREE.CanvasTexture(this.generateGroundTexture(metadata, this.config.width, this.config.height, sizeMultiplayer));
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+
+        return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture }));
+    },  
+
+    ///
+    /// Generate ground texture
+    ///
+    generateGroundTexture: function (data, width, height, sizeMultiplayer) {
         var canvas, canvasScaled, context, image, imageData,
         level, diff, vector3, sun, shade;
 
@@ -284,11 +338,11 @@ var ThreeJsRenderer = {
         // Scaled 4x
 
         canvasScaled = document.createElement('canvas');
-        canvasScaled.width = width * 4;
-        canvasScaled.height = height * 4;
+        canvasScaled.width = width * sizeMultiplayer;
+        canvasScaled.height = height * sizeMultiplayer;
 
         context = canvasScaled.getContext('2d');
-        context.scale(4, 4);
+        context.scale(sizeMultiplayer, sizeMultiplayer);
         context.drawImage(canvas, 0, 0);
 
         image = context.getImageData(0, 0, canvasScaled.width, canvasScaled.height);
@@ -307,6 +361,20 @@ var ThreeJsRenderer = {
         context.putImageData(image, 0, 0);
 
         return canvasScaled;
+    },
+
+    ///
+    /// Render sea water
+    ///
+    renderMapSea: function (sizeMultiplayer) {
+        var water = new THREE.Water(this.config.width * sizeMultiplayer, this.config.height * sizeMultiplayer, {
+            scale: 4,
+            textureWidth: 1024,
+            textureHeight: 1024,
+            flowDirection: new THREE.Vector2(0, 0),
+        });
+
+        return water;
     },
 
     calculatePointRealElevation: function (point, cell, distanceToOwnSite) {
@@ -329,13 +397,11 @@ var ThreeJsRenderer = {
         return ((1-(distanceToOwnSite / (distanceToOwnSite + distanceToClosestSites))) * ownSiteRealElevation) +
             ((1-(distanceToClosestSites / (distanceToOwnSite + distanceToClosestSites))) * closestSiteRealElevation);
     },
-
     calculate2dDistance: function (point1, point2) {
         var a = point1[0] - point2[0];
         var b = point1[1] - point2[1];
         return Math.sqrt(a * a + b * b);
     },    
-
     pointDistanceToLine: function (x, y, x1, y1, x2, y2) {
 
         var A = x - x1;
