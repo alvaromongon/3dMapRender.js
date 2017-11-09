@@ -97,7 +97,7 @@ var ThreeJsRenderer = {
 
         // TODO: Extract to a function
         var oceanBottomGeometry = new THREE.PlaneBufferGeometry(this.config.width * sizeMultiplayer * 4, this.config.height * sizeMultiplayer * 4);
-        var oceanBottomMaterial = new THREE.MeshBasicMaterial({ color: THREE_COLORS["SNOW"] }); //, side: THREE.DoubleSide });
+        var oceanBottomMaterial = new THREE.MeshBasicMaterial({ color: THREE_COLORS["OCEAN"] }); //, side: THREE.DoubleSide });
         var oceanBottom = new THREE.Mesh(oceanBottomGeometry, oceanBottomMaterial);
         oceanBottom.rotateX(Math.PI * - 0.5);
         oceanBottom.position.y = oceanDeapestAltitude * elevationMultiplayer;
@@ -105,7 +105,7 @@ var ThreeJsRenderer = {
 
         var ocean = this.renderMapOcean(sizeMultiplayer);
         ocean.rotateX(Math.PI * - 0.5);
-        ocean.position.y = 0;
+        ocean.position.y = 0.1;
         this.scene.add(ocean);
     },
 
@@ -151,6 +151,7 @@ var ThreeJsRenderer = {
 
         var size = this.config.width * this.config.height;
         var halfWidth = this.config.width / 2;
+        var logBase = Math.log(0.00001);
 
         var data = new Object();
         data.elevations = new Array(size);
@@ -176,7 +177,7 @@ var ThreeJsRenderer = {
                 var pointRealElevation = this.calculatePointRealElevation(point, closetTerrainCell, distanceToClosetTerrainSite);
                 if (pointRealElevation < 0) {
                     // exponentially going down
-                    data.elevations[i] = - Math.pow(1.1, distanceToClosetTerrainSite) / halfWidth;
+                    data.elevations[i] = distanceToClosetTerrainSite == 0 ? -0.001 : Math.log(distanceToClosetTerrainSite) / logBase;
                     data.biomes[i] = "OCEAN"; // by default is OCEAN
                     continue;
                 }
