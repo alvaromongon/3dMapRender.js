@@ -465,7 +465,7 @@ var Island = {
         if (cell.water && cell.lakeElevation != null) {
             return cell.lakeElevation;
         } else if (cell.water && cell.elevation < 0) {
-            return -1;
+            return -0;
         } else {
             return cell.elevation;
         }

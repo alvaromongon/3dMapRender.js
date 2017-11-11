@@ -1,5 +1,6 @@
 var THREE_COLORS = {
-    OCEAN: new THREE.Color('#82caff'),
+    OCEAN_WATER: new THREE.Color('#82caff'),
+    OCEAN: new THREE.Color('#fbf8e5'),
     BEACH: new THREE.Color('#ffe98d'),
     LAKE: new THREE.Color('#2f9ceb'),
     RIVER: new THREE.Color('#369eea'),
@@ -174,15 +175,19 @@ var ThreeJsRenderer = {
                 }
             }
             if (closetTerrainCell != null) {
-                var pointRealElevation = this.calculatePointRealElevation(point, closetTerrainCell, distanceToClosetTerrainSite);
-                if (pointRealElevation < 0) {
+                var result = this.calculateDistanceToClosestNeighborSite(point, closetTerrainCell);
+
+                // If closest neighbor site is closer than closest terrain site, this is OCEAN
+                if (result.distanceToClosestNeighborSite < distanceToClosetTerrainSite) {
                     // exponentially going down
                     data.elevations[i] = distanceToClosetTerrainSite == 0 ? -0.001 : Math.log(distanceToClosetTerrainSite) / logBase;
                     data.biomes[i] = "OCEAN"; // by default is OCEAN
                     continue;
-                }
-                data.elevations[i] = pointRealElevation;
-                data.biomes[i] = closetTerrainCell.biome;
+                } else {
+                    var pointData = this.calculatePointMetadata(closetTerrainCell, result.neighborCell, distanceToClosetTerrainSite, result.distanceToClosestNeighborSite);
+                    data.elevations[i] = pointData.elevation;
+                    data.biomes[i] = pointData.biome;
+                }                
             }
             else {
                 console.log("Impossible to find a closet terrain cell for the given point. This should never happens");
@@ -356,7 +361,7 @@ var ThreeJsRenderer = {
     ///
     renderMapOcean: function (sizeMultiplayer) {
         var water = new THREE.Water(this.config.width * sizeMultiplayer * 4, this.config.height * sizeMultiplayer * 4, {
-            color: THREE_COLORS["OCEAN"],
+            color: THREE_COLORS["OCEAN_WATER"],
             scale: 4,
             textureWidth: 1024,
             textureHeight: 1024,
@@ -366,25 +371,43 @@ var ThreeJsRenderer = {
         return water;
     },
 
-    calculatePointRealElevation: function (point, cell, distanceToOwnSite) {
-        var ownSiteRealElevation = cell.realElevation;
+    calculateDistanceToClosestNeighborSite: function (point, closetTerrainCell) {
+        var data = new Object();
+        data.distanceToClosestNeighborSite = 999999;
+        data.neighborCell = null;
 
-        var distanceToClosestSites = 999999;
-        var closestSiteRealElevation = 0;
-
-        var neighbors = cell.getNeighborIds();
+        var neighbors = closetTerrainCell.getNeighborIds();
         for (var j = 0; j < neighbors.length; j++) {
             var neighborCell = this.diagram.cells[neighbors[j]];
 
             var distanceToNeighborSite = this.calculate2dDistance(point, [neighborCell.site.x, neighborCell.site.y]);
-            if (distanceToNeighborSite < distanceToClosestSites) {
-                distanceToClosestSites = distanceToNeighborSite;
-                closestSiteRealElevation = neighborCell.realElevation;
+            if (distanceToNeighborSite < data.distanceToClosestNeighborSite) {
+                data.distanceToClosestNeighborSite = distanceToNeighborSite;
+                data.neighborCell = neighborCell;
             }
         }
+        return data;
+    },
+    calculatePointMetadata: function (ownCell, closestNeighborCell, distanceToOwnSite, distanceToClosestNeighborSite) {
+        var data = new Object();
+        data.elevation = 0;
+        data.biome = ownCell.biome;
 
-        return ((1-(distanceToOwnSite / (distanceToOwnSite + distanceToClosestSites))) * ownSiteRealElevation) +
-            ((1-(distanceToClosestSites / (distanceToOwnSite + distanceToClosestSites))) * closestSiteRealElevation);
+        var ownSiteRealElevation = ownCell.realElevation;
+        var closestNeighborSiteRealElevation = closestNeighborCell.realElevation;
+
+        var ownSiteElevationData = ((1 - (distanceToOwnSite / (distanceToOwnSite + distanceToClosestNeighborSite))) * ownSiteRealElevation);
+        var closestNeighborElevationData = ((1 - (distanceToClosestNeighborSite / (distanceToOwnSite + distanceToClosestNeighborSite))) * closestNeighborSiteRealElevation);
+
+        // TODO: THIS IS NOT WORKING... YET
+        if (closestNeighborCell.water &&
+            this.config.cliffsThreshold < Math.abs(ownSiteElevationData - closestNeighborElevationData)) {
+            data.biome = "ROCK";
+        }
+
+        data.elevation = ownSiteElevationData + closestNeighborElevationData;
+
+        return data;
     },
     calculate2dDistance: function (point1, point2) {
         var a = point1[0] - point2[0];
