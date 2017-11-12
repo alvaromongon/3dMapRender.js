@@ -49,7 +49,6 @@ var ThreeJsRenderer = {
         // Variables to sync different rendered parts
         var sizeMultiplayer = 4;
         var elevationMultiplayer = this.config.width * 0.4;
-        var oceanDeapestAltitude = -1;
 
         // Scene
         this.scene = new THREE.Scene();
@@ -72,7 +71,7 @@ var ThreeJsRenderer = {
         //this.renderer.shadowMap.enabled = true;
         //this.renderer.toneMapping = THREE.ReinhardToneMapping;
 
-        this.renderMap(sizeMultiplayer, elevationMultiplayer, oceanDeapestAltitude);
+        this.renderMap(sizeMultiplayer, elevationMultiplayer);
         this.renderBackgroundAndLight(sizeMultiplayer, elevationMultiplayer);
 
         // Controls
@@ -89,25 +88,26 @@ var ThreeJsRenderer = {
     ///
     /// Render voronoi map
     ///
-    renderMap: function (sizeMultiplayer, elevationMultiplayer, oceanDeapestAltitude) {
+    renderMap: function (sizeMultiplayer, elevationMultiplayer) {
         var metadata = this.generateMapMetadata();              
 
         var terrain = this.renderMapTerrain(metadata, elevationMultiplayer, sizeMultiplayer);
         terrain.rotateX(Math.PI * - 0.5);
         this.scene.add(terrain);
-
+        
         // TODO: Extract to a function
+        var seaBead = this.calculatePointMetadata(null, null, this.config.width, 0);
         var oceanBottomGeometry = new THREE.PlaneBufferGeometry(this.config.width * sizeMultiplayer * 4, this.config.height * sizeMultiplayer * 4);
-        var oceanBottomMaterial = new THREE.MeshBasicMaterial({ color: THREE_COLORS["OCEAN"] }); //, side: THREE.DoubleSide });
+        var oceanBottomMaterial = new THREE.MeshBasicMaterial({ color: THREE_COLORS[seaBead.biome] }); //, side: THREE.DoubleSide });
         var oceanBottom = new THREE.Mesh(oceanBottomGeometry, oceanBottomMaterial);
         oceanBottom.rotateX(Math.PI * - 0.5);
-        oceanBottom.position.y = oceanDeapestAltitude * elevationMultiplayer;
+        oceanBottom.position.y = seaBead.elevation;
         this.scene.add(oceanBottom);
-
+             
         var ocean = this.renderMapOcean(sizeMultiplayer);
         ocean.rotateX(Math.PI * - 0.5);
         ocean.position.y = 0.1;
-        this.scene.add(ocean);
+        this.scene.add(ocean);       
     },
 
     ///
@@ -152,7 +152,6 @@ var ThreeJsRenderer = {
 
         var size = this.config.width * this.config.height;
         var halfWidth = this.config.width / 2;
-        var logBase = Math.log(0.00001);
 
         var data = new Object();
         data.elevations = new Array(size);
@@ -176,35 +175,29 @@ var ThreeJsRenderer = {
             }
             if (closetTerrainCell != null) {
                 var result = this.calculateDistanceToClosestNeighborSite(point, closetTerrainCell);
+                var pointData = this.calculatePointMetadata(closetTerrainCell, result.neighborCell, distanceToClosetTerrainSite, result.distanceToClosestNeighborSite);
 
-                // If closest neighbor site is closer than closest terrain site, this is OCEAN
-                if (result.distanceToClosestNeighborSite < distanceToClosetTerrainSite) {
-                    // exponentially going down
-                    data.elevations[i] = distanceToClosetTerrainSite == 0 ? -0.001 : Math.log(distanceToClosetTerrainSite) / logBase;
-                    data.biomes[i] = "OCEAN"; // by default is OCEAN
-                    continue;
-                } else {
-                    var pointData = this.calculatePointMetadata(closetTerrainCell, result.neighborCell, distanceToClosetTerrainSite, result.distanceToClosestNeighborSite);
-                    data.elevations[i] = pointData.elevation;
-                    data.biomes[i] = pointData.biome;
-                }                
+                data.elevations[i] = pointData.elevation;
+                data.biomes[i] = pointData.biome;                               
             }
             else {
                 console.log("Impossible to find a closet terrain cell for the given point. This should never happens");
             }
 
-            // Search if the point is contained in any of the river segments and assign RIVER biome
-            for (var j = 0, numSegments = voronoiMap.riverPaths.length; j < numSegments; j++) {
-                var distance = this.pointDistanceToLine(
-                    point[0], point[1],
-                    voronoiMap.riverPaths[j].x1, voronoiMap.riverPaths[j].y1,
-                    voronoiMap.riverPaths[j].x2, voronoiMap.riverPaths[j].y2);
-                if (distance < 1) {
-                    data.biomes[i] = "RIVER";
-                    //console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
-                    break;
+            if (data.elevations[i] > 0) {
+                // Search if the point is contained in any of the river segments and assign RIVER biome
+                for (var j = 0, numSegments = voronoiMap.riverPaths.length; j < numSegments; j++) {
+                    var distance = this.pointDistanceToLine(
+                        point[0], point[1],
+                        voronoiMap.riverPaths[j].x1, voronoiMap.riverPaths[j].y1,
+                        voronoiMap.riverPaths[j].x2, voronoiMap.riverPaths[j].y2);
+                    if (distance < 1) {
+                        data.biomes[i] = "RIVER";
+                        //console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
+                        break;
+                    }
                 }
-            }
+            }            
         }
 
         return data;
@@ -388,24 +381,40 @@ var ThreeJsRenderer = {
         }
         return data;
     },
-    calculatePointMetadata: function (ownCell, closestNeighborCell, distanceToOwnSite, distanceToClosestNeighborSite) {
+    calculatePointMetadata: function (closestTerrainCell, closestNeighborCell, distanceToClosestTerrainSite, distanceToClosestNeighborSite) {
         var data = new Object();
-        data.elevation = 0;
-        data.biome = ownCell.biome;
 
-        var ownSiteRealElevation = ownCell.realElevation;
-        var closestNeighborSiteRealElevation = closestNeighborCell.realElevation;
+        if (closestTerrainCell == null || closestNeighborCell == null) {
+            data.elevation = (distanceToClosestTerrainSite / this.config.width) * (-1.0001);
+            data.biome = "OCEAN"; // by default is OCEAN
+        } else {
 
-        var ownSiteElevationData = ((1 - (distanceToOwnSite / (distanceToOwnSite + distanceToClosestNeighborSite))) * ownSiteRealElevation);
-        var closestNeighborElevationData = ((1 - (distanceToClosestNeighborSite / (distanceToOwnSite + distanceToClosestNeighborSite))) * closestNeighborSiteRealElevation);
+            // If closest neighbor site is closer than closest terrain site, this is OCEAN
+            if (distanceToClosestTerrainSite > distanceToClosestNeighborSite) {
+                data.elevation = (distanceToClosestTerrainSite / this.config.width) * (-1.0001);
 
-        // TODO: THIS IS NOT WORKING... YET
-        if (closestNeighborCell.water &&
-            this.config.cliffsThreshold < Math.abs(ownSiteElevationData - closestNeighborElevationData)) {
-            data.biome = "ROCK";
-        }
+                if (Math.abs(distanceToClosestTerrainSite - distanceToClosestNeighborSite) <= 2) {
+                    data.biome = closestTerrainCell.biome;
+                } else {
+                    data.biome = "OCEAN"; // by default is OCEAN
+                }
+            } else {
+                var ownSiteRealElevation = closestTerrainCell.realElevation;
+                var closestNeighborSiteRealElevation = closestNeighborCell.realElevation;
 
-        data.elevation = ownSiteElevationData + closestNeighborElevationData;
+                data.biome = closestTerrainCell.biome;
+
+                var ownSiteElevationData = ((1 - (distanceToClosestTerrainSite / (distanceToClosestTerrainSite + distanceToClosestNeighborSite))) * ownSiteRealElevation);
+                var closestNeighborElevationData = ((1 - (distanceToClosestNeighborSite / (distanceToClosestTerrainSite + distanceToClosestNeighborSite))) * closestNeighborSiteRealElevation);
+
+                data.elevation = ownSiteElevationData + closestNeighborElevationData;
+            }
+
+            if (closestTerrainCell.coast && !closestTerrainCell.beach)
+            {
+                data.biome = "ROCK";
+            }
+        }       
 
         return data;
     },
