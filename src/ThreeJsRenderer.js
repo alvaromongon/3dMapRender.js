@@ -118,7 +118,7 @@ var ThreeJsRenderer = {
         // Set altitudes
         var vertices = geometry.attributes.position.array;
         for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j++) {
-            vertices[i + 2] = metadata.elevations[j] * elevationMultiplayer;
+            vertices[i + 2] = this.calculateVertexElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplayer);
         }
 
         texture = new THREE.CanvasTexture(this.generateGroundTexture(metadata, this.width, this.height, sizeMultiplayer));
@@ -127,6 +127,18 @@ var ThreeJsRenderer = {
 
         return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture }));
     },  
+
+    ///
+    /// Calculate real elevations
+    ///
+    calculateVertexElevation: function (vertexElevation, vertexBiome, elevationMultiplayer) {
+        var elevation = vertexElevation * elevationMultiplayer;
+
+        if (vertexBiome == "RIVER") {
+            elevation = elevation * 0.95;
+        } 
+        return elevation;
+    },
 
     ///
     /// Generate ground texture
