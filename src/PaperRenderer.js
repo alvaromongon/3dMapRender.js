@@ -59,7 +59,7 @@ var PaperRenderer = {
 
         paper.view.draw();
 
-        console.info("Paper render completed");
+        //console.info("Paper render completed");
     },
     
     renderCells: function() {

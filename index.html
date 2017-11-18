@@ -20,6 +20,7 @@
 
         <script type="text/javascript" src="src/Island.js"></script>
         <script type="text/javascript" src="src/PaperRenderer.js"></script>
+        <script type="text/javascript" src="src/MeshDataFactory.js"></script>        
         <script type="text/javascript" src="src/ThreeJsRenderer.js"></script>
 	</head>
 
@@ -34,10 +35,10 @@
 
             void main() {
 
-            vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
-            vWorldPosition = worldPosition.xyz;
+                vec4 worldPosition = modelMatrix * vec4( position, 1.0 );
+                vWorldPosition = worldPosition.xyz;
 
-            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+                gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 
             }
 
@@ -54,8 +55,8 @@
 
             void main() {
 
-            float h = normalize( vWorldPosition + offset ).y;
-            gl_FragColor = vec4( mix( bottomColor, topColor, max( pow( max( h , 0.0), exponent ), 0.0 ) ), 1.0 );
+                float h = normalize( vWorldPosition + offset ).y;
+                gl_FragColor = vec4( mix( bottomColor, topColor, max( pow( max( h , 0.0), exponent ), 0.0 ) ), 1.0 );
 
             }
 
@@ -77,27 +78,37 @@
             height: 256,
             perlinWidth: 256,
             perlinHeight: 256,
-            allowDebug: true, // if set to true, you can clic on the map to enter "debug" mode. Warning : debug mode is slow to initialize, set to false for faster rendering.
+            allowDebug: false, // if set to true, you can clic on the map to enter "debug" mode. Warning : debug mode is slow to initialize, set to false for faster rendering.
             nbSites: 10000, //10000, // nb of voronoi cell
             sitesDistribution: 'hexagon', // distribution of the site : random, square or hexagon
             sitesRandomisation: 80, // will move each site in a random way (in %), for the square or hexagon distribution to look more random
             nbGraphRelaxation: 0, // nb of time we apply the relaxation algo to the voronoi graph (slow !), for the random distribution to look less random
             cliffsThreshold: 0.15,
             lakesThreshold: 0.005, // lake elevation will increase by this value (* the river size) when a new river end inside
-            nbRivers: 0, //(10000 / 200),
+            nbRivers: 25, //(10000 / 200),
             maxRiversSize: 4,
             shading: 0.35,
             shadeOcean: true
         }
 
+        var islandStartTime = new Date().getTime();
         var result = Island.generate(userConfig, perlinNoiseCanvas);
+        console.log("Island generate finished in: " + eval(new Date().getTime() - islandStartTime) + " miliseconds");
 
+        var paperStartTime = new Date().getTime();
         PaperRenderer.render(paperCanvas, result.diagram, result.sites, userConfig);
+        console.log("Paper renderer finished in: " + eval(new Date().getTime() - paperStartTime) + " miliseconds");
 
-        var rendererStartTime = new Date().getTime();
-        ThreeJsRenderer.render(threeJsCanvas, result.diagram, result.sites, userConfig);
-        var renderedTime = new Date().getTime() - rendererStartTime;
-        console.log("ThreeJsRendere took: " + renderedTime + " miliseconds");
+        var meshDataFactoryStartTime = new Date().getTime();
+        var meshData = MeshDataFactory.create(result.diagram, result.sites, userConfig.width, userConfig.height);
+        console.log("Mesh data factory finished in: " + eval(new Date().getTime() - meshDataFactoryStartTime) + " miliseconds");
+
+        var threeJsStartTime = new Date().getTime();
+        ThreeJsRenderer.render(threeJsCanvas, meshData, userConfig.width, userConfig.height);
+        console.log("Three renderer finished in: " + eval(new Date().getTime() - threeJsStartTime) + " miliseconds");
+
+        //var renderedTime = new Date().getTime() - rendererStartTime;
+        console.log("Complete process finished in : " + eval(new Date().getTime() - islandStartTime) + " miliseconds");
     };
     </script>
         <noscript>You need to enable Javascript in your browser for this page to display properly.</noscript>
