@@ -1,28 +1,29 @@
 var THREE_COLORS = {
-    OCEAN_WATER: new THREE.Color('#82caff'),
-    OCEAN: new THREE.Color('#fbf8e5'),
-    BEACH: new THREE.Color('#ffe98d'),
-    LAKE: new THREE.Color('#2f9ceb'),
-    RIVER: new THREE.Color('#369eea'),
-    SOURCE: new THREE.Color('#00f'),
-    MARSH: new THREE.Color('#2ac6d3'),
-    ICE: new THREE.Color('#b3deff'),
-    ROCK: new THREE.Color('#535353'),
-    LAVA: new THREE.Color('#e22222'),
+    OCEAN_WATER: { color: new THREE.Color('#82caff'), code: 0 },
+    OCEAN: { color: new THREE.Color('#fbf8e5'), code: 1 },
+    BEACH: { color: new THREE.Color('#ffe98d'), code: 2 },
+    LAKE: { color: new THREE.Color('#2f9ceb'), code: 3 },
+    RIVER: { color: new THREE.Color('#369eea'), code: 4 },
+    RIVER_WATER: { color: new THREE.Color('#369eea'), code: 5 },
+    SOURCE: { color: new THREE.Color('#00f'), code: 6 },
+    MARSH: { color: new THREE.Color('#2ac6d3'), code: 7 },
+    ICE: { color: new THREE.Color('#b3deff'), code: 8 },
+    ROCK: { color: new THREE.Color('#535353'), code: 9 },
+    LAVA: { color: new THREE.Color('#e22222'), code: 10 },
 
-    SNOW: new THREE.Color('#f8f8f8'),
-    TUNDRA: new THREE.Color('#ddddbb'),
-    BARE: new THREE.Color('#bbbbbb'),
-    SCORCHED: new THREE.Color('#999999'),
-    TAIGA: new THREE.Color('#ccd4bb'),
-    SHRUBLAND: new THREE.Color('#c4ccbb'),
-    TEMPERATE_DESERT: new THREE.Color('#e4e8ca'),
-    TEMPERATE_RAIN_FOREST: new THREE.Color('#a4c4a8'),
-    TEMPERATE_DECIDUOUS_FOREST: new THREE.Color('#b4c9a9'),
-    GRASSLAND: new THREE.Color('#c4d4aa'),
-    TROPICAL_RAIN_FOREST: new THREE.Color('#9cbba9'),
-    TROPICAL_SEASONAL_FOREST: new THREE.Color('#a9cca4'),
-    SUBTROPICAL_DESERT: new THREE.Color('#e9ddc7')
+    SNOW: { color: new THREE.Color('#f8f8f8'), code: 11 },
+    TUNDRA: { color: new THREE.Color('#ddddbb'), code: 12 },
+    BARE: { color: new THREE.Color('#bbbbbb'), code: 13 },
+    SCORCHED: { color: new THREE.Color('#999999'), code: 14 },
+    TAIGA: { color: new THREE.Color('#ccd4bb'), code: 15 },
+    SHRUBLAND: { color: new THREE.Color('#c4ccbb'), code: 16 },
+    TEMPERATE_DESERT: { color: new THREE.Color('#e4e8ca'), code: 17 },
+    TEMPERATE_RAIN_FOREST: { color: new THREE.Color('#a4c4a8'), code: 18 },
+    TEMPERATE_DECIDUOUS_FOREST: { color: new THREE.Color('#b4c9a9'), code: 19 },
+    GRASSLAND: { color: new THREE.Color('#c4d4aa'), code: 20 },
+    TROPICAL_RAIN_FOREST: { color: new THREE.Color('#9cbba9'), code: 21 },
+    TROPICAL_SEASONAL_FOREST: { color: new THREE.Color('#a9cca4'), code: 22 },
+    SUBTROPICAL_DESERT: { color: new THREE.Color('#e9ddc7'), code: 23 }
 };
 
 var ThreeJsRenderer = {
@@ -89,28 +90,34 @@ var ThreeJsRenderer = {
     /// Render voronoi map
     ///
     renderMap: function (sizeMultiplayer, elevationMultiplayer, meshData) {
-        var terrain = this.renderMapTerrain(meshData.terrain, elevationMultiplayer, sizeMultiplayer);
+        
+        var terrain = this.renderTerrain(meshData.terrain, elevationMultiplayer, sizeMultiplayer);
         terrain.rotateX(Math.PI * - 0.5);
         this.scene.add(terrain);
         
-        // TODO: Extract to a function
-        var oceanBottomGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplayer * 4, this.height * sizeMultiplayer * 4);
-        var oceanBottomMaterial = new THREE.MeshBasicMaterial({ color: THREE_COLORS[meshData.seaBed.biome] }); //, side: THREE.DoubleSide });
-        var oceanBottom = new THREE.Mesh(oceanBottomGeometry, oceanBottomMaterial);
-        oceanBottom.rotateX(Math.PI * - 0.5);
-        oceanBottom.position.y = meshData.seaBed.elevation;
-        this.scene.add(oceanBottom);
-             
-        var ocean = this.renderMapOcean(sizeMultiplayer);
+        
+        var terrainWater = this.renderTerrainWater(meshData.terrain, elevationMultiplayer, sizeMultiplayer);
+        terrainWater.rotateX(Math.PI * - 0.5);
+        this.scene.add(terrainWater);    
+        
+        
+        var oceanBed = this.renderOceanBed(meshData.seaBed, sizeMultiplayer);
+        oceanBed.rotateX(Math.PI * - 0.5);
+        oceanBed.position.y = meshData.seaBed.elevation;
+        this.scene.add(oceanBed);
+        
+        
+        var ocean = this.renderSeaWater(sizeMultiplayer);
         ocean.rotateX(Math.PI * - 0.5);
         ocean.position.y = 0.1;
-        this.scene.add(ocean);       
+        this.scene.add(ocean);
+        
     },
 
     ///
     /// Render terrain
     ///
-    renderMapTerrain: function (metadata, elevationMultiplayer, sizeMultiplayer) {
+    renderTerrain: function (metadata, elevationMultiplayer, sizeMultiplayer) {
         var geometry = new THREE.PlaneBufferGeometry(
             this.width * sizeMultiplayer, this.height * sizeMultiplayer,
             this.width - 1, this.height - 1);
@@ -118,7 +125,7 @@ var ThreeJsRenderer = {
         // Set altitudes
         var vertices = geometry.attributes.position.array;
         for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j++) {
-            vertices[i + 2] = this.calculateVertexElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplayer);
+            vertices[i + 2] = this.calculateTerrainElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplayer);
         }
 
         texture = new THREE.CanvasTexture(this.generateGroundTexture(metadata, this.width, this.height, sizeMultiplayer));
@@ -129,15 +136,74 @@ var ThreeJsRenderer = {
     },  
 
     ///
-    /// Calculate real elevations
+    /// Render  river and lakes water
     ///
-    calculateVertexElevation: function (vertexElevation, vertexBiome, elevationMultiplayer) {
+    renderTerrainWater: function (metadata, elevationMultiplayer, sizeMultiplayer) {
+        var geometry = new THREE.PlaneBufferGeometry(
+            this.width * sizeMultiplayer, this.height * sizeMultiplayer,
+            this.width - 1, this.height - 1);
+
+        // Set altitudes
+        var vertices = geometry.attributes.position.array;
+        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j++) {
+            vertices[i + 2] = this.calculateTerrainWaterElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplayer);
+        }
+
+        var water = new THREE.TerrainWater(geometry, {
+            color: THREE_COLORS["RIVER_WATER"].color,
+            scale: 4,
+            textureWidth: 1024,
+            textureHeight: 1024,
+            flowDirection: new THREE.Vector2(0, 0),
+            surfaceData: metadata
+        });
+
+        return water;
+    },
+
+    ///
+    /// Render the rest of the ocen botton since the need to give a endless terrain apperance
+    ///
+    renderOceanBed: function (metadata, sizeMultiplayer) {
+        var oceanBedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplayer * 4, this.height * sizeMultiplayer * 4);
+        var oceanBedMaterial = new THREE.MeshBasicMaterial({ color: THREE_COLORS[metadata.biome].color }); //, side: THREE.DoubleSide });
+        var oceanBed = new THREE.Mesh(oceanBedGeometry, oceanBedMaterial);
+
+        return oceanBed;
+    },
+
+    ///
+    /// Render sea water
+    ///
+    renderSeaWater: function (sizeMultiplayer) {
+        var water = new THREE.Water(this.width * sizeMultiplayer * 4, this.height * sizeMultiplayer * 4, {
+            color: THREE_COLORS["OCEAN_WATER"].color,
+            scale: 4,
+            textureWidth: 1024,
+            textureHeight: 1024,
+            flowDirection: new THREE.Vector2(0, 0)
+        });
+
+        return water;
+    },
+
+    ///
+    /// Calculate real terrain elevations
+    ///
+    calculateTerrainElevation: function (vertexElevation, vertexBiome, elevationMultiplayer) {
         var elevation = vertexElevation * elevationMultiplayer;
 
-        if (vertexBiome == "RIVER") {
-            elevation = elevation * 0.95;
+        if (vertexBiome == "RIVER" || vertexBiome == "LAKE") {
+            elevation = elevation * 0.85; //Cave river course and lake bed
         } 
         return elevation;
+    },
+
+    ///
+    /// Calculate real terrain warter elevations
+    ///
+    calculateTerrainWaterElevation: function (vertexElevation, vertexBiome, elevationMultiplayer) {
+        return vertexElevation * elevationMultiplayer;
     },
 
     ///
@@ -165,9 +231,9 @@ var ThreeJsRenderer = {
 
         for (var i = 0, j = 0, l = imageData.length; i < l; i += 4, j++) {
             // Do not apply shades
-            imageData[i] = THREE_COLORS[data.biomes[j]].r * 255;
-            imageData[i + 1] = THREE_COLORS[data.biomes[j]].g * 255;
-            imageData[i + 2] = THREE_COLORS[data.biomes[j]].b * 255;
+            imageData[i] = THREE_COLORS[data.biomes[j]].color.r * 255;
+            imageData[i + 1] = THREE_COLORS[data.biomes[j]].color.g * 255;
+            imageData[i + 2] = THREE_COLORS[data.biomes[j]].color.b * 255;
             /*
             vector3.x = data.elevations[j - 2] - data.elevations[j + 2];
             vector3.y = 2;
@@ -210,21 +276,6 @@ var ThreeJsRenderer = {
         context.putImageData(image, 0, 0);
 
         return canvasScaled;
-    },
-
-    ///
-    /// Render sea water
-    ///
-    renderMapOcean: function (sizeMultiplayer) {
-        var water = new THREE.Water(this.width * sizeMultiplayer * 4, this.height * sizeMultiplayer * 4, {
-            color: THREE_COLORS["OCEAN_WATER"],
-            scale: 4,
-            textureWidth: 1024,
-            textureHeight: 1024,
-            flowDirection: new THREE.Vector2(0, 0),
-        });
-
-        return water;
     },
 
     ///

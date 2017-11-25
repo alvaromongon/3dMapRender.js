@@ -133,7 +133,7 @@ var MeshDataFactory = {
 
     calculateDistanceToClosestNeighborSite: function (point, closetTerrainCell) {
         var data = new Object();
-        data.distanceToClosestNeighborSite = 999999;
+        data.distanceToClosestNeighborSite = this.width;
         data.neighborCell = null;
 
         var neighbors = closetTerrainCell.getNeighborIds();
