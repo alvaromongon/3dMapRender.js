@@ -59,7 +59,7 @@ var MeshDataFactory = {
                 data.biomes[i] = pointData.biome;
             }
             else {
-                console.log("Impossible to find a closet terrain cell for the given point. This should never happens");
+                console.log("Impossible to find the closet terrain cell for the given point. This should never happens!");
             }
 
             if (data.elevations[i] > 0) {
@@ -71,7 +71,34 @@ var MeshDataFactory = {
                         voronoiMap.riverPaths[j].x2, voronoiMap.riverPaths[j].y2);
                     if (distance < 1) {
                         data.biomes[i] = "RIVER";
-                        //console.log("point [" + point[0] + "," + point[1] + "] with distance " + distance);
+                        /*
+                        //Set surronding points as RIVER_SIDE unless they are a river
+                        if ((i - this.width - 1) >= 0 && data.biomes[i - this.width - 1] != "RIVER") {
+                            data.biomes[i - this.width - 1] = "RIVER_SIDE";
+                        }
+                        if ((i - this.width) >= 0 && data.biomes[i - this.width] != "RIVER") {
+                            data.biomes[i - this.width] = "RIVER_SIDE";
+                        }
+                        if ((i - this.width + 1) >= 0 && data.biomes[i - this.width + 1] != "RIVER") {
+                            data.biomes[i - this.width + 1] = "RIVER_SIDE";
+                        }
+
+                        if ((i - 1) >= 0 && data.biomes[i - 1] != "RIVER") {
+                            data.biomes[i - 1] = "RIVER_SIDE";
+                        }
+                        if ((i + 1) < size && data.biomes[i + 1] != "RIVER") {
+                            data.biomes[i + 1] = "RIVER_SIDE";
+                        }
+
+                        if ((i + this.width - 1) < size && data.biomes[i + this.width - 1] != "RIVER") {
+                            data.biomes[i + this.width - 1] = "RIVER_SIDE";
+                        }
+                        if ((i + this.width) < size && data.biomes[i + this.width] != "RIVER") {
+                            data.biomes[i + this.width] = "RIVER_SIDE";
+                        }
+                        if ((i + this.width + 1) < size && data.biomes[i + this.width + 1] != "RIVER") {
+                            data.biomes[i + this.width + 1] = "RIVER_SIDE";
+                        }*/
                         break;
                     }
                 }

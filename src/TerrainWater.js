@@ -132,10 +132,6 @@ THREE.TerrainWater = function (geometry, options) {
 
     for (var v = 0; v < positions.count; v++) {
         biomes.push(THREE_COLORS[surfaceData.biomes[v]].code);
-
-        if (THREE_COLORS[surfaceData.biomes[v]].code == 3.0) {
-            console.log("LAKE");
-        }
     }
     this.geometry.addAttribute('biome', new THREE.Float32BufferAttribute(biomes, 1).setDynamic(false));
 
@@ -315,7 +311,7 @@ THREE.TerrainWater.WaterShader = {
 
         'void main() {',
 
-        '   if(vBiome != 3.0 && vBiome != 4.0) { discard; }', // LAKE & RIVER
+        '   if(vBiome == 11.0) { discard; }', // DISCAR OCEAN
 
         '	float flowMapOffset0 = config.x;',
         '	float flowMapOffset1 = config.y;',
