@@ -311,7 +311,7 @@ THREE.TerrainWater.WaterShader = {
 
         'void main() {',
 
-        '   if(vBiome == 11.0) { discard; }', // DISCAR OCEAN
+        //'   if(vBiome == 11.0) { discard; }', // DISCAR OCEAN
 
         '	float flowMapOffset0 = config.x;',
         '	float flowMapOffset1 = config.y;',

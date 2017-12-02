@@ -1,13 +1,15 @@
 var THREE_COLORS = {
-    OCEAN_WATER: { color: new THREE.Color('#82caff'), code: 10 },
-    OCEAN: { color: new THREE.Color('#fbf8e5'), code: 11 },
-    BEACH: { color: new THREE.Color('#ffe98d'), code: 12 },
-    LAKE: { color: new THREE.Color('#2f9ceb'), code: 20 },
-    LAKE_SIDE: { color: new THREE.Color('#ffe98d'), code: 21 },
+    OCEAN: { color: new THREE.Color('#f7ecc0'), code: 10 },
+    BEACH: { color: new THREE.Color('#ffe98d'), code: 11 },
+
+    LAKE: { color: new THREE.Color('#535353'), code: 20 },
+    //LAKE_SIDE: { color: new THREE.Color('#ffe98d'), code: 21 },
+
     RIVER: { color: new THREE.Color('#535353'), code: 30 },
     //RIVER_SIDE: { color: new THREE.Color('#ffe98d'), code: 31 },
-    RIVER_WATER: { color: new THREE.Color('#369eea'), code: 32 },
-    SOURCE: { color: new THREE.Color('#00f'), code: 40 },
+
+    SOURCE: { color: new THREE.Color('#535353'), code: 40 },
+    
     MARSH: { color: new THREE.Color('#2ac6d3'), code: 50 },
     ICE: { color: new THREE.Color('#b3deff'), code: 60 },
     ROCK: { color: new THREE.Color('#535353'), code: 70 },
@@ -49,39 +51,41 @@ var ThreeJsRenderer = {
         this.height = height;   
 
         // Variables to sync different rendered parts
-        var sizeMultiplayer = 8;
-        var elevationMultiplayer = this.width * 0.6;
+        var sizeMultiplier = 8;
+        var elevationMultiplier = this.width * 0.6;
 
         // Scene
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color().setHSL(0.6, 0, 1);
-        this.scene.fog = new THREE.Fog(this.scene.background, 1, this.width * sizeMultiplayer * 2);
+        this.scene.fog = new THREE.Fog(this.scene.background, 1, this.width * sizeMultiplier * 2);
 
         // Camera // (fov, aspect, near, far)
-        this.camera = new THREE.PerspectiveCamera(75, 1, 1, this.width * sizeMultiplayer * 10); 
-        this.camera.position.x = -this.width * sizeMultiplayer/2;
-        this.camera.position.y = this.width * sizeMultiplayer;
+        this.camera = new THREE.PerspectiveCamera(75, 1, 1, this.width * sizeMultiplier * 10); 
+        this.camera.position.x = -this.width * sizeMultiplier/2;
+        this.camera.position.y = this.width * sizeMultiplier;
         this.camera.position.z = 0;
         this.scene.add(this.camera);
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerWidth);
-        //this.renderer.setSize(this.width * sizeMultiplayer, this.height * sizeMultiplayer);
+        //this.renderer.setSize(this.width * sizeMultiplier, this.height * sizeMultiplier);
         //this.renderer.physicallyCorrectLights = true;
         //this.renderer.gammaInput = true;
         //this.renderer.gammaOutput = true;
         //this.renderer.shadowMap.enabled = true;
         //this.renderer.toneMapping = THREE.ReinhardToneMapping;
 
-        this.renderMap(sizeMultiplayer, elevationMultiplayer, meshData);
-        this.renderBackgroundAndLight(sizeMultiplayer, elevationMultiplayer);
+        this.renderMap(sizeMultiplier, elevationMultiplier, meshData);
+        //this.renderSkyBox(sizeMultiplier, elevationMultiplier);
+        //this.renderLights();
+        this.renderBackgroundAndLight(sizeMultiplier, elevationMultiplier);
 
         // Controls
         var controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         //controls.maxPolarAngle = Math.PI * 0.5;
         controls.minDistance = 1;
-        controls.maxDistance = this.width * sizeMultiplayer;
+        controls.maxDistance = this.width * sizeMultiplier;
 
         animate();
 
@@ -91,90 +95,87 @@ var ThreeJsRenderer = {
     ///
     /// Render voronoi map
     ///
-    renderMap: function (sizeMultiplayer, elevationMultiplayer, meshData) {
-        var terrain = this.renderTerrain(meshData.terrain, elevationMultiplayer, sizeMultiplayer);
-        terrain.rotateX(Math.PI * - 0.5);
-        this.scene.add(terrain);
+    renderMap: function (sizeMultiplier, elevationMultiplier, meshData) {
         
-        var terrainWater = this.renderTerrainWater(meshData.terrain, elevationMultiplayer, sizeMultiplayer);
-        terrainWater.rotateX(Math.PI * - 0.5);
-        this.scene.add(terrainWater);    
-               
-        var oceanBed = this.renderOceanBed(meshData.seaBed, sizeMultiplayer);
+        var waterColor = new THREE.Color('#d0e8ff');
+
+        this.renderGroundAndWater(meshData.terrain, elevationMultiplier, sizeMultiplier, waterColor, this.scene);       
+
+        var oceanBed = this.renderOceanBed(THREE_COLORS["OCEAN"].color, sizeMultiplier);
         oceanBed.rotateX(Math.PI * - 0.5);
-        oceanBed.position.y = meshData.seaBed.elevation;
+        oceanBed.position.y = -0.5 * elevationMultiplier;
         this.scene.add(oceanBed);
-                
-        var ocean = this.renderSeaWater(sizeMultiplayer);
+            
+        // TODO: This ocean may need to be merged with water geometry. is that even possible?
+        var ocean = this.renderExtendedSeaWater(sizeMultiplier, waterColor);
         ocean.rotateX(Math.PI * - 0.5);
-        ocean.position.y = 0.1;
+        ocean.position.y = -0.1 * elevationMultiplier;
         this.scene.add(ocean);
     },
 
     ///
-    /// Render terrain
+    /// Render ground and water
     ///
-    renderTerrain: function (metadata, elevationMultiplayer, sizeMultiplayer) {
-        var geometry = new THREE.PlaneBufferGeometry(
-            this.width * sizeMultiplayer, this.height * sizeMultiplayer,
+    renderGroundAndWater: function (metadata, elevationMultiplier, sizeMultiplier, waterColor, scene) {
+        var groundGeometry = new THREE.PlaneBufferGeometry(
+            this.width * sizeMultiplier, this.height * sizeMultiplier,
+            this.width - 1, this.height - 1);
+
+        var waterGeometry = new THREE.PlaneBufferGeometry(
+            this.width * sizeMultiplier, this.height * sizeMultiplier,
             this.width - 1, this.height - 1);
 
         // Set altitudes
-        var vertices = geometry.attributes.position.array;
-        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j++) {
-            vertices[i + 2] = this.calculateTerrainElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplayer);
+        var groundVertices = groundGeometry.attributes.position.array;
+        var waterVertices = waterGeometry.attributes.position.array;
+        for (var i = 0, j = 0, numVertices = groundVertices.length; i < numVertices; i += 3, j++) {
+            groundVertices[i + 2] = this.calculateTerrainElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplier);
+            waterVertices[i + 2] = this.calculateTerrainWaterElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplier);
         }
 
-        texture = new THREE.CanvasTexture(this.generateGroundTexture(metadata, this.width, this.height, sizeMultiplayer));
-        texture.wrapS = THREE.ClampToEdgeWrapping;
-        texture.wrapT = THREE.ClampToEdgeWrapping;
+        // TERRAIN
+        groundTexture = new THREE.CanvasTexture(this.generateGroundTexture(metadata, this.width, this.height, sizeMultiplier));
+        groundTexture.wrapS = THREE.ClampToEdgeWrapping;
+        groundTexture.wrapT = THREE.ClampToEdgeWrapping;
 
-        return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture }));
-    },  
+        var groundMaterial = new THREE.MeshBasicMaterial({ map: groundTexture });
+        groundMaterial.needsUpdate = true;
+        var ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotateX(Math.PI * - 0.5);
+        scene.add(ground);
 
-    ///
-    /// Render  river and lakes water
-    ///
-    renderTerrainWater: function (metadata, elevationMultiplayer, sizeMultiplayer) {
-        var geometry = new THREE.PlaneBufferGeometry(
-            this.width * sizeMultiplayer, this.height * sizeMultiplayer,
-            this.width - 1, this.height - 1);
-
-        // Set altitudes
-        var vertices = geometry.attributes.position.array;
-        for (var i = 0, j = 0, numVertices = vertices.length; i < numVertices; i += 3, j++) {
-            vertices[i + 2] = this.calculateTerrainWaterElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplayer);
-        }
-
-        var water = new THREE.TerrainWater(geometry, {
-            color: THREE_COLORS["RIVER_WATER"].color,
+        // WATER
+        // TODO: not doing anything with surfaceData, not needed, but need flow direction calculation
+        var water = new THREE.TerrainWater(waterGeometry, {
+            color: waterColor,
             scale: 4,
             textureWidth: 1024,
             textureHeight: 1024,
-            flowDirection: new THREE.Vector2(0, 0),
+            flowDirection: new THREE.Vector2(0, 0), 
+            reflectivity: 0.0,
             surfaceData: metadata
         });
-
-        return water;
+        water.rotateX(Math.PI * - 0.5);
+        scene.add(water);
     },
 
     ///
     /// Render the rest of the ocen botton since the need to give a endless terrain apperance
     ///
-    renderOceanBed: function (metadata, sizeMultiplayer) {
-        var oceanBedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplayer * 4, this.height * sizeMultiplayer * 4);
-        var oceanBedMaterial = new THREE.MeshBasicMaterial({ color: THREE_COLORS[metadata.biome].color }); //, side: THREE.DoubleSide });
+    renderOceanBed: function (seaBedColor, sizeMultiplier) {
+        var oceanBedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplier * 4, this.height * sizeMultiplier * 4);
+        var oceanBedMaterial = new THREE.MeshBasicMaterial({ color: seaBedColor }); //, side: THREE.DoubleSide });
         var oceanBed = new THREE.Mesh(oceanBedGeometry, oceanBedMaterial);
 
         return oceanBed;
     },
 
     ///
-    /// Render sea water
+    /// Render extended sea water
     ///
-    renderSeaWater: function (sizeMultiplayer) {
-        var water = new THREE.Water(this.width * sizeMultiplayer * 4, this.height * sizeMultiplayer * 4, {
-            color: THREE_COLORS["OCEAN_WATER"].color,
+    renderExtendedSeaWater: function (sizeMultiplier, waterColor) {
+        var water = new THREE.Water(this.width * sizeMultiplier * 4, this.height * sizeMultiplier * 4, {
+            color: waterColor,
             scale: 4,
             textureWidth: 1024,
             textureHeight: 1024,
@@ -187,11 +188,11 @@ var ThreeJsRenderer = {
     ///
     /// Calculate real terrain elevations
     ///
-    calculateTerrainElevation: function (vertexElevation, vertexBiome, elevationMultiplayer) {
-        var elevation = vertexElevation * elevationMultiplayer;
+    calculateTerrainElevation: function (vertexElevation, vertexBiome, elevationMultiplier) {
+        var elevation = vertexElevation * elevationMultiplier;
 
         if (vertexBiome == "RIVER" || vertexBiome == "LAKE") {
-            elevation = elevation * 0.85; //Cave river course and lake bed
+            elevation = elevation * (((elevation / elevationMultiplier) * 0.10) + 0.90); //Cave river course and lake bed
         } 
         return elevation;
     },
@@ -199,14 +200,24 @@ var ThreeJsRenderer = {
     ///
     /// Calculate real terrain warter elevations
     ///
-    calculateTerrainWaterElevation: function (vertexElevation, vertexBiome, elevationMultiplayer) {
-        return vertexElevation * elevationMultiplayer * 0.95;
+    calculateTerrainWaterElevation: function (vertexElevation, vertexBiome, elevationMultiplier) {   
+                      
+        var elevation = 0.0
+
+        if (vertexBiome == "RIVER" || vertexBiome == "LAKE") {
+            elevation = vertexElevation * elevationMultiplier;
+        }
+        else if (vertexBiome != "OCEAN") {
+            elevation = vertexElevation * elevationMultiplier * 0.95;
+        }
+
+        return elevation;
     },
 
     ///
     /// Generate ground texture
     ///
-    generateGroundTexture: function (data, width, height, sizeMultiplayer) {
+    generateGroundTexture: function (data, width, height, sizeMultiplier) {
         var canvas, canvasScaled, context, image, imageData,
         level, diff, vector3, sun, shade;
 
@@ -250,11 +261,11 @@ var ThreeJsRenderer = {
         // Scaled 4x
 
         canvasScaled = document.createElement('canvas');
-        canvasScaled.width = width * sizeMultiplayer;
-        canvasScaled.height = height * sizeMultiplayer;
+        canvasScaled.width = width * sizeMultiplier;
+        canvasScaled.height = height * sizeMultiplier;
 
         context = canvasScaled.getContext('2d');
-        context.scale(sizeMultiplayer, sizeMultiplayer);
+        context.scale(sizeMultiplier, sizeMultiplier);
         context.drawImage(canvas, 0, 0);
 
         image = context.getImageData(0, 0, canvasScaled.width, canvasScaled.height);
@@ -276,9 +287,49 @@ var ThreeJsRenderer = {
     },
 
     ///
+    /// Render Skybox
+    ///
+    renderSkyBox: function (sizeMultiplier, elevationMultiplier) {
+        var cubeTextureLoader = new THREE.CubeTextureLoader();
+        cubeTextureLoader.setPath('textures/cube/skybox/');
+
+        var cubeTexture = cubeTextureLoader.load([
+            'px.jpg', 'nx.jpg',
+            'py.jpg', 'ny.jpg',
+            'pz.jpg', 'nz.jpg',
+        ]);
+
+        var cubeShader = THREE.ShaderLib['cube'];
+        cubeShader.uniforms['tCube'].value = cubeTexture;
+
+        var skyBoxMaterial = new THREE.ShaderMaterial({
+            fragmentShader: cubeShader.fragmentShader,
+            vertexShader: cubeShader.vertexShader,
+            uniforms: cubeShader.uniforms,
+            side: THREE.BackSide
+        });
+
+        var skyBoxSize = this.width * sizeMultiplier * 2;
+        var skyBox = new THREE.Mesh(new THREE.BoxBufferGeometry(skyBoxSize, skyBoxSize, skyBoxSize), skyBoxMaterial);
+        this.scene.add(skyBox);
+    },
+
+    ///
+    /// Render light
+    ///
+    renderLights: function () {
+        var ambientLight = new THREE.AmbientLight(0xcccccc, 0.4);
+        this.scene.add(ambientLight);
+
+        var directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight.position.set(- 1, 1, 1);
+        this.scene.add(directionalLight);
+    },
+
+    ///
     /// Render background images and lights
     ///
-    renderBackgroundAndLight: function (sizeMultiplayer, elevationMultiplayer) {
+    renderBackgroundAndLight: function (sizeMultiplier, elevationMultiplier) {
         var hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
         hemiLight.color.setHSL(0.6, 1, 0.6);
         hemiLight.groundColor.setHSL(0.095, 1, 0.75);
@@ -287,7 +338,7 @@ var ThreeJsRenderer = {
 
         var hemiLightHelper = new THREE.HemisphereLightHelper(hemiLight, 10);
         this.scene.add(hemiLightHelper);
-
+        
 
         var vertexShader = document.getElementById('vertexShader').textContent;
         var fragmentShader = document.getElementById('fragmentShader').textContent;
@@ -302,7 +353,7 @@ var ThreeJsRenderer = {
         this.scene.fog.color.copy(uniforms.bottomColor.value);
 
         // ( radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength )
-        var skyGeo = new THREE.SphereGeometry(this.width * sizeMultiplayer * 2, 32, 15);
+        var skyGeo = new THREE.SphereGeometry(this.width * sizeMultiplier * 2, 32, 15);
         var skyMat = new THREE.ShaderMaterial({ vertexShader: vertexShader, fragmentShader: fragmentShader, uniforms: uniforms, side: THREE.BackSide });
 
         var sky = new THREE.Mesh(skyGeo, skyMat);

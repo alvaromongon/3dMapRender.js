@@ -17,7 +17,6 @@ var MeshDataFactory = {
 
         var meshData = new Object();
         meshData.terrain = this.generateMapMetadata();
-        meshData.seaBed = this.calculatePointMetadata(null, null, this.width, 0);
 
         return meshData;
     },
@@ -187,10 +186,12 @@ var MeshDataFactory = {
             if (distanceToClosestTerrainSite > distanceToClosestNeighborSite) {
                 data.elevation = (distanceToClosestTerrainSite / this.width) * (-1.0001);
 
-                if (Math.abs(distanceToClosestTerrainSite - distanceToClosestNeighborSite) <= 2) {
+                // Force the OCEAN to start a little bit lower to avoid weird water efects
+                if (data.elevation > -0.02){
                     data.biome = closestTerrainCell.biome;
-                } else {
-                    data.biome = "OCEAN"; // by default is OCEAN
+                }
+                else{
+                    data.biome = "OCEAN"; 
                 }
             } else {
                 var ownSiteRealElevation = closestTerrainCell.realElevation;
