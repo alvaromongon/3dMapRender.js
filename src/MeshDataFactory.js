@@ -33,6 +33,7 @@ var MeshDataFactory = {
         var data = new Object();
         data.elevations = new Array(size);
         data.biomes = new Array(size);
+        data.flowDirections = new Float32Array(size*2);
 
         // For each point in the plane set elevation and biomes
         for (var i = 0; i < size; i++) {
@@ -70,6 +71,43 @@ var MeshDataFactory = {
                         voronoiMap.riverPaths[j].x2, voronoiMap.riverPaths[j].y2);
                     if (distance < 1) {
                         data.biomes[i] = "RIVER";
+                        
+                        if ((i - this.width - 1) >= 0 && data.biomes[i - this.width - 1] == "RIVER") {
+                            data.flowDirections[i*2] = 1;
+                            data.flowDirections[i*2+1] = 1;
+                        }
+                        if ((i - this.width) >= 0 && data.biomes[i - this.width] == "RIVER") {
+                            data.flowDirections[i*2] = 0;
+                            data.flowDirections[i*2+1] = 1;
+                        }
+                        if ((i - this.width + 1) >= 0 && data.biomes[i - this.width + 1] == "RIVER") {
+                            data.flowDirections[i*2] = -1;
+                            data.flowDirections[i*2+1] = 1;
+                        }
+
+                        if ((i - 1) >= 0 && data.biomes[i - 1] == "RIVER") {
+                            data.flowDirections[i*2] = 1;
+                            data.flowDirections[i*2+1] = 0;
+                        }
+                        if ((i + 1) < size && data.biomes[i + 1] == "RIVER") {
+                            data.flowDirections[i*2] = -1;
+                            data.flowDirections[i*2+1] = 0;
+                        }
+
+                        if ((i + this.width - 1) < size && data.biomes[i + this.width - 1] == "RIVER") {
+                            data.flowDirections[i*2] = 1;
+                            data.flowDirections[i*2+1] = -1;
+                        }
+                        if ((i + this.width) < size && data.biomes[i + this.width] == "RIVER") {
+                            data.flowDirections[i*2] = 0;
+                            data.flowDirections[i*2+1] = -1;
+                        }
+                        if ((i + this.width + 1) < size && data.biomes[i + this.width + 1] == "RIVER") {
+                            data.flowDirections[i*2] = -1;
+                            data.flowDirections[i*2+1] = -1;
+                        }
+
+
                         /*
                         //Set surronding points as RIVER_SIDE unless they are a river
                         if ((i - this.width - 1) >= 0 && data.biomes[i - this.width - 1] != "RIVER") {

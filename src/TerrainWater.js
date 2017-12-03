@@ -21,7 +21,7 @@ THREE.TerrainWater = function (geometry, options) {
     var textureWidth = options.textureWidth || 512;
     var textureHeight = options.textureHeight || 512;
     var clipBias = options.clipBias || 0;
-    var flowDirection = options.flowDirection || new THREE.Vector2(1, 0);
+    //var flowDirection = options.flowDirection || [] //new THREE.Vector2(1, 0);
     var flowSpeed = options.flowSpeed || 0.03;
     var reflectivity = options.reflectivity || 0.02;
     var scale = options.scale || 1;
@@ -32,8 +32,6 @@ THREE.TerrainWater = function (geometry, options) {
     var flowMap = options.flowMap || undefined;
     var normalMap0 = options.normalMap0 || textureLoader.load('textures/water/Water_1_M_Normal.jpg');
     var normalMap1 = options.normalMap1 || textureLoader.load('textures/water/Water_2_M_Normal.jpg');
-
-    var surfaceData = options.surfaceData || undefined; // height / biome / water flow direction?
 
     var width = options.width || 1.0;
     var height = options.height || 1.0;
@@ -96,14 +94,14 @@ THREE.TerrainWater = function (geometry, options) {
             value: flowMap
         };
 
-    } else {
+    } /*else {
 
         this.material.uniforms.flowDirection = {
             type: 'v2',
             value: flowDirection
         };
 
-    }
+    }*/
 
     // maps
 
@@ -120,17 +118,6 @@ THREE.TerrainWater = function (geometry, options) {
     this.material.uniforms.color.value = color;
     this.material.uniforms.reflectivity.value = reflectivity;
     this.material.uniforms.textureMatrix.value = textureMatrix;
-
-    // ATTRIBUTES biomes - populate biomes values    
-    if (surfaceData != undefined){
-        var positions = this.geometry.attributes.position;
-        var biomes = [];
-    
-        for (var v = 0; v < positions.count; v++) {
-            biomes.push(THREE_COLORS[surfaceData.biomes[v]].code);
-        }
-        this.geometry.addAttribute('biome', new THREE.Float32BufferAttribute(biomes, 1).setDynamic(false));
-    }
 
     // inital values
 
@@ -255,19 +242,19 @@ THREE.TerrainWater.WaterShader = {
 
         '#include <fog_pars_vertex>',
 
-        'attribute float biome;', //Attributes are values that are applied to individual vertices
+        'attribute vec2 flowDirection;', //Attributes are values that are applied to individual vertices
 
         'uniform mat4 textureMatrix;',
 
         'varying vec4 vCoord;',
         'varying vec2 vUv;',
         'varying vec3 vToEye;',
-        'varying float vBiome;', //Varyings are variables declared in the vertex shader that we want to share with the fragment shader
+        'varying vec2 vflowDirection;', //Varyings are variables declared in the vertex shader that we want to share with the fragment shader
 
         'void main() {',
 
         '	vUv = uv;',
-        '	vBiome = biome;',
+        '	vflowDirection = flowDirection;',
         '	vCoord = textureMatrix * vec4( position, 1.0 );',
 
         '	vec4 worldPosition = modelMatrix * vec4( position, 1.0 );',
@@ -293,8 +280,8 @@ THREE.TerrainWater.WaterShader = {
 
         '#ifdef USE_FLOWMAP',
         '	uniform sampler2D tFlowMap;',
-        '#else',
-        '	uniform vec2 flowDirection;',
+        //'#else',
+        //'	uniform vec2 flowDirection;',
         '#endif',
 
         'uniform vec3 color;',
@@ -304,7 +291,7 @@ THREE.TerrainWater.WaterShader = {
         'varying vec4 vCoord;',
         'varying vec2 vUv;',
         'varying vec3 vToEye;',
-        'varying float vBiome;', //Varyings are variables declared in the vertex shader that we want to share with the fragment shader
+        'varying vec2 vflowDirection;', //Varyings are variables declared in the vertex shader that we want to share with the fragment shader
 
         'void main() {',
 
@@ -322,7 +309,7 @@ THREE.TerrainWater.WaterShader = {
         '	#ifdef USE_FLOWMAP',
         '		flow = texture2D( tFlowMap, vUv ).rg * 2.0 - 1.0;',
         '	#else',
-        '		flow = flowDirection;',
+        '		flow = vflowDirection;',
         '	#endif',
         '	flow.x *= - 1.0;',
 

@@ -119,6 +119,7 @@ var ThreeJsRenderer = {
         var waterGeometry = new THREE.PlaneBufferGeometry(
             this.width * sizeMultiplier, this.height * sizeMultiplier,
             this.width - 1, this.height - 1);
+        waterGeometry.addAttribute('flowDirection', new THREE.BufferAttribute(metadata.flowDirections, 2));        
 
         // Set altitudes
         var groundVertices = groundGeometry.attributes.position.array;
@@ -140,15 +141,15 @@ var ThreeJsRenderer = {
         scene.add(ground);
 
         // WATER
-        // TODO: not doing anything with surfaceData, not needed, but need flow direction calculation
         var waterExtendedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplier * 4, this.height * sizeMultiplier * 4);
-        var waterGeometryMerged = waterGeometry.join(waterExtendedGeometry)
+        var flowDirectionExtended = new Float32Array(waterExtendedGeometry.parameters.width*waterExtendedGeometry.parameters.height*2);
+        waterExtendedGeometry.addAttribute('flowDirection', new THREE.BufferAttribute(flowDirectionExtended, 2));
+        var waterGeometryMerged = waterGeometry.join(waterExtendedGeometry);
         var water = new THREE.TerrainWater(waterGeometryMerged, {
             color: waterColor,
             scale: 4,
             textureWidth: 1024,
             textureHeight: 1024,
-            flowDirection: new THREE.Vector2(0, 0), 
             reflectivity: 0.0,
             width: waterGeometry.parameters.width,
             height: waterGeometry.parameters.height
