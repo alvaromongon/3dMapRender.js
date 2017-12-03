@@ -105,18 +105,13 @@ var ThreeJsRenderer = {
         oceanBed.rotateX(Math.PI * - 0.5);
         oceanBed.position.y = -0.5 * elevationMultiplier;
         this.scene.add(oceanBed);
-            
-        // TODO: This ocean may need to be merged with water geometry. is that even possible?
-        var ocean = this.renderExtendedSeaWater(sizeMultiplier, waterColor);
-        ocean.rotateX(Math.PI * - 0.5);
-        ocean.position.y = -0.1 * elevationMultiplier;
-        this.scene.add(ocean);
     },
 
     ///
     /// Render ground and water
     ///
     renderGroundAndWater: function (metadata, elevationMultiplier, sizeMultiplier, waterColor, scene) {
+
         var groundGeometry = new THREE.PlaneBufferGeometry(
             this.width * sizeMultiplier, this.height * sizeMultiplier,
             this.width - 1, this.height - 1);
@@ -146,14 +141,17 @@ var ThreeJsRenderer = {
 
         // WATER
         // TODO: not doing anything with surfaceData, not needed, but need flow direction calculation
-        var water = new THREE.TerrainWater(waterGeometry, {
+        var waterExtendedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplier * 4, this.height * sizeMultiplier * 4);
+        var waterGeometryMerged = waterGeometry.join(waterExtendedGeometry)
+        var water = new THREE.TerrainWater(waterGeometryMerged, {
             color: waterColor,
             scale: 4,
             textureWidth: 1024,
             textureHeight: 1024,
             flowDirection: new THREE.Vector2(0, 0), 
             reflectivity: 0.0,
-            surfaceData: metadata
+            width: waterGeometry.parameters.width,
+            height: waterGeometry.parameters.height
         });
         water.rotateX(Math.PI * - 0.5);
         scene.add(water);
@@ -168,21 +166,6 @@ var ThreeJsRenderer = {
         var oceanBed = new THREE.Mesh(oceanBedGeometry, oceanBedMaterial);
 
         return oceanBed;
-    },
-
-    ///
-    /// Render extended sea water
-    ///
-    renderExtendedSeaWater: function (sizeMultiplier, waterColor) {
-        var water = new THREE.Water(this.width * sizeMultiplier * 4, this.height * sizeMultiplier * 4, {
-            color: waterColor,
-            scale: 4,
-            textureWidth: 1024,
-            textureHeight: 1024,
-            flowDirection: new THREE.Vector2(0, 0)
-        });
-
-        return water;
     },
 
     ///

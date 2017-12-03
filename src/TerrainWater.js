@@ -35,13 +35,8 @@ THREE.TerrainWater = function (geometry, options) {
 
     var surfaceData = options.surfaceData || undefined; // height / biome / water flow direction?
 
-    if (surfaceData === undefined) {
-        console.error('THREE.TerrainWater: surfaceData not defined.');
-        return;
-    }
-
-    var width = this.geometry.parameters.width;
-    var height = this.geometry.parameters.height;
+    var width = options.width || 1.0;
+    var height = options.height || 1.0;
 
     var cycle = 0.15; // a cycle of a flow map phase
     var halfCycle = cycle * 0.5;
@@ -127,13 +122,15 @@ THREE.TerrainWater = function (geometry, options) {
     this.material.uniforms.textureMatrix.value = textureMatrix;
 
     // ATTRIBUTES biomes - populate biomes values    
-    var positions = this.geometry.attributes.position;
-    var biomes = [];
-
-    for (var v = 0; v < positions.count; v++) {
-        biomes.push(THREE_COLORS[surfaceData.biomes[v]].code);
+    if (surfaceData != undefined){
+        var positions = this.geometry.attributes.position;
+        var biomes = [];
+    
+        for (var v = 0; v < positions.count; v++) {
+            biomes.push(THREE_COLORS[surfaceData.biomes[v]].code);
+        }
+        this.geometry.addAttribute('biome', new THREE.Float32BufferAttribute(biomes, 1).setDynamic(false));
     }
-    this.geometry.addAttribute('biome', new THREE.Float32BufferAttribute(biomes, 1).setDynamic(false));
 
     // inital values
 
