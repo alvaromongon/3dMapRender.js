@@ -282,7 +282,7 @@ var Island = {
                 // we continue the river to the next lowest cell :
                 this.setAsRiver(lowerCell, size);
                 cell.nextRiver = lowerCell; 
-                lowerCell.flowDirection = riverFlowDirection;
+                cell.flowDirection = riverFlowDirection;
             } else {
                 // we are in a hole, so we create a lake :
                 cell.water = true;

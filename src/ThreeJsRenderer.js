@@ -10,7 +10,8 @@ var THREE_COLORS = {
 
     SOURCE: { color: new THREE.Color('#535353'), code: 40 },
     
-    MARSH: { color: new THREE.Color('#2ac6d3'), code: 50 },
+    MARSH: { color: new THREE.Color('#994d00'), code: 50 }, //cienage
+    
     ICE: { color: new THREE.Color('#b3deff'), code: 60 },
     ROCK: { color: new THREE.Color('#535353'), code: 70 },
     LAVA: { color: new THREE.Color('#e22222'), code: 80 },
@@ -95,11 +96,9 @@ var ThreeJsRenderer = {
     ///
     /// Render voronoi map
     ///
-    renderMap: function (sizeMultiplier, elevationMultiplier, meshData) {
-        
-        var waterColor = new THREE.Color('#d0e8ff');
+    renderMap: function (sizeMultiplier, elevationMultiplier, meshData) {           
 
-        this.renderGroundAndWater(meshData.terrain, elevationMultiplier, sizeMultiplier, waterColor, this.scene);       
+        this.renderGroundAndWater(meshData.terrain, elevationMultiplier, sizeMultiplier, this.scene);       
 
         var oceanBed = this.renderOceanBed(THREE_COLORS["OCEAN"].color, sizeMultiplier);
         oceanBed.rotateX(Math.PI * - 0.5);
@@ -110,7 +109,7 @@ var ThreeJsRenderer = {
     ///
     /// Render ground and water
     ///
-    renderGroundAndWater: function (metadata, elevationMultiplier, sizeMultiplier, waterColor, scene) {
+    renderGroundAndWater: function (metadata, elevationMultiplier, sizeMultiplier, scene) {
 
         var groundGeometry = new THREE.PlaneBufferGeometry(
             this.width * sizeMultiplier, this.height * sizeMultiplier,
@@ -124,10 +123,13 @@ var ThreeJsRenderer = {
         // Set altitudes
         var groundVertices = groundGeometry.attributes.position.array;
         var waterVertices = waterGeometry.attributes.position.array;
+        var biomeCodes = new Float32Array(waterGeometry.parameters.width*waterGeometry.parameters.height);
         for (var i = 0, j = 0, numVertices = groundVertices.length; i < numVertices; i += 3, j++) {
             groundVertices[i + 2] = this.calculateTerrainElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplier);
             waterVertices[i + 2] = this.calculateTerrainWaterElevation(metadata.elevations[j], metadata.biomes[j], elevationMultiplier);
+            biomeCodes[j] = THREE_COLORS[metadata.biomes[j]].code;
         }
+        waterGeometry.addAttribute('biome', new THREE.BufferAttribute(biomeCodes, 1));
 
         // TERRAIN
         groundTexture = new THREE.CanvasTexture(this.generateGroundTexture(metadata, this.width, this.height, sizeMultiplier));
@@ -143,14 +145,24 @@ var ThreeJsRenderer = {
         // WATER
         var waterExtendedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplier * 4, this.height * sizeMultiplier * 4);
         var flowDirectionExtended = new Float32Array(waterExtendedGeometry.parameters.width*waterExtendedGeometry.parameters.height*2);
+        var biomesExtended = new Float32Array(waterExtendedGeometry.parameters.width*waterExtendedGeometry.parameters.height);
         waterExtendedGeometry.addAttribute('flowDirection', new THREE.BufferAttribute(flowDirectionExtended, 2));
+        waterExtendedGeometry.addAttribute('biome', new THREE.BufferAttribute(biomesExtended, 1));
+
         var waterGeometryMerged = waterGeometry.join(waterExtendedGeometry);
         var water = new THREE.TerrainWater(waterGeometryMerged, {
-            color: waterColor,
+            seaColor: new THREE.Color('#ffffff'),
+            riverColor: new THREE.Color('#ffffff'),
+            lakeColor: new THREE.Color('#ffffff'),
+            marshColor: new THREE.Color('#ffffff'),
             scale: 4,
             textureWidth: 1024,
             textureHeight: 1024,
-            reflectivity: 0.0,
+            flowSpeed: 0.02,
+            seaReflectivity: 0.7,
+            riverReflectivity: 0.6,
+            lakeReflectivity: 0.7,
+            marshReflectivity: 0.5,
             width: waterGeometry.parameters.width,
             height: waterGeometry.parameters.height
         });
@@ -177,7 +189,9 @@ var ThreeJsRenderer = {
 
         if (vertexBiome == "RIVER" || vertexBiome == "LAKE") {
             elevation = elevation * (((elevation / elevationMultiplier) * 0.10) + 0.90); //Cave river course and lake bed
-        } 
+        } else if (vertexBiome == "MARSH"){ 
+            elevation = elevation * 0.95 // cienaga, pantano
+        }
         return elevation;
     },
 
@@ -188,7 +202,7 @@ var ThreeJsRenderer = {
                       
         var elevation = 0.0
 
-        if (vertexBiome == "RIVER" || vertexBiome == "LAKE") {
+        if (vertexBiome == "RIVER" || vertexBiome == "LAKE" || vertexBiome == "MARSH") {
             elevation = vertexElevation * elevationMultiplier;
         }
         else if (vertexBiome != "OCEAN") {

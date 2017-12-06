@@ -17,13 +17,19 @@ THREE.TerrainWater = function (geometry, options) {
 
     options = options || {};
 
-    var color = (options.color !== undefined) ? new THREE.Color(options.color) : new THREE.Color(0xFFFFFF);
+    var seaColor = (options.seaColor !== undefined) ? new THREE.Color(options.seaColor) : new THREE.Color(0xFFFFFF);
+    var riverColor = (options.riverColor !== undefined) ? new THREE.Color(options.riverColor) : new THREE.Color(0xFFFFFF);
+    var lakeColor = (options.lakeColor !== undefined) ? new THREE.Color(options.lakeColor) : new THREE.Color(0xFFFFFF);
+    var marshColor = (options.marshColor !== undefined) ? new THREE.Color(options.marshColor) : new THREE.Color(0xFFFFFF);
     var textureWidth = options.textureWidth || 512;
     var textureHeight = options.textureHeight || 512;
     var clipBias = options.clipBias || 0;
     //var flowDirection = options.flowDirection || [] //new THREE.Vector2(1, 0);
     var flowSpeed = options.flowSpeed || 0.03;
-    var reflectivity = options.reflectivity || 0.02;
+    var seaReflectivity = options.seaReflectivity || 0.02;
+    var riverReflectivity = options.riverReflectivity || 0.02;
+    var lakeReflectivity = options.lakeReflectivity || 0.02;
+    var marshReflectivity = options.marshReflectivity || 0.02;
     var scale = options.scale || 1;
     var shader = options.shader || THREE.TerrainWater.WaterShader;
 
@@ -115,8 +121,14 @@ THREE.TerrainWater = function (geometry, options) {
 
     // water
 
-    this.material.uniforms.color.value = color;
-    this.material.uniforms.reflectivity.value = reflectivity;
+    this.material.uniforms.seaColor.value = seaColor;
+    this.material.uniforms.riverColor.value = riverColor;
+    this.material.uniforms.lakeColor.value = lakeColor;
+    this.material.uniforms.marshColor.value = marshColor;
+    this.material.uniforms.seaReflectivity.value = seaReflectivity;
+    this.material.uniforms.riverReflectivity.value = riverReflectivity;
+    this.material.uniforms.lakeReflectivity.value = lakeReflectivity;
+    this.material.uniforms.marshReflectivity.value = marshReflectivity;
     this.material.uniforms.textureMatrix.value = textureMatrix;
 
     // inital values
@@ -196,12 +208,36 @@ THREE.TerrainWater.WaterShader = {
 
     uniforms: {
 
-        'color': {
+        'seaColor': {
+            type: 'c',
+            value: null
+        },
+        'riverColor': {
+            type: 'c',
+            value: null
+        },
+        'lakeColor': {
+            type: 'c',
+            value: null
+        },
+        'marshColor': {
             type: 'c',
             value: null
         },
 
-        'reflectivity': {
+        'seaReflectivity': {
+            type: 'f',
+            value: 0
+        },
+        'riverReflectivity': {
+            type: 'f',
+            value: 0
+        },
+        'lakeReflectivity': {
+            type: 'f',
+            value: 0
+        },
+        'marshReflectivity': {
             type: 'f',
             value: 0
         },
@@ -242,6 +278,7 @@ THREE.TerrainWater.WaterShader = {
 
         '#include <fog_pars_vertex>',
 
+        'attribute float biome;', //Attributes are values that are applied to individual vertices
         'attribute vec2 flowDirection;', //Attributes are values that are applied to individual vertices
 
         'uniform mat4 textureMatrix;',
@@ -250,10 +287,12 @@ THREE.TerrainWater.WaterShader = {
         'varying vec2 vUv;',
         'varying vec3 vToEye;',
         'varying vec2 vflowDirection;', //Varyings are variables declared in the vertex shader that we want to share with the fragment shader
+        'varying float vBiome;', //Varyings are variables declared in the vertex shader that we want to share with the fragment shader
 
         'void main() {',
 
         '	vUv = uv;',
+        '	vBiome = biome;',
         '	vflowDirection = flowDirection;',
         '	vCoord = textureMatrix * vec4( position, 1.0 );',
 
@@ -284,24 +323,31 @@ THREE.TerrainWater.WaterShader = {
         //'	uniform vec2 flowDirection;',
         '#endif',
 
-        'uniform vec3 color;',
-        'uniform float reflectivity;',
+        'uniform vec3 seaColor;',
+        'uniform vec3 riverColor;',
+        'uniform vec3 lakeColor;',
+        'uniform vec3 marshColor;',
+        'uniform float seaReflectivity;',
+        'uniform float riverReflectivity;',
+        'uniform float lakeReflectivity;',
+        'uniform float marshReflectivity;',
         'uniform vec4 config;',
 
         'varying vec4 vCoord;',
         'varying vec2 vUv;',
         'varying vec3 vToEye;',
+        'varying float vBiome;', //Varyings are variables declared in the vertex shader that we want to share with the fragment shader
         'varying vec2 vflowDirection;', //Varyings are variables declared in the vertex shader that we want to share with the fragment shader
 
         'void main() {',
-
-        //'   if(vBiome == 11.0) { discard; }', // DISCAR OCEAN
 
         '	float flowMapOffset0 = config.x;',
         '	float flowMapOffset1 = config.y;',
         '	float halfCycle = config.z;',
         '	float scale = config.w;',
-
+        
+        '	vec3 color = riverColor;',
+        '	float reflectivity = riverReflectivity;',
         '	vec3 toEye = normalize( vToEye );',
 
         // determine flow direction
@@ -312,6 +358,13 @@ THREE.TerrainWater.WaterShader = {
         '		flow = vflowDirection;',
         '	#endif',
         '	flow.x *= - 1.0;',
+
+        // determine color and reflectivity
+        // by default is river values, so I do not need to evaluate those
+        '   if(vBiome == 10.0) { reflectivity = seaReflectivity; color = seaColor; }',
+        '   if(vBiome == 0.0) { reflectivity = seaReflectivity; color = seaColor; }',
+        '   if(vBiome == 20.0) { reflectivity = lakeReflectivity; color = lakeColor; }',        
+        '   if(vBiome == 50.0) { reflectivity = marshReflectivity; color = marshColor; }',
 
         // sample normal maps (distort uvs with flowdata)
         '	vec4 normalColor0 = texture2D( tNormalMap0, ( vUv * scale ) + flow * flowMapOffset0 );',
