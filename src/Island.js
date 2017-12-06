@@ -267,6 +267,7 @@ var Island = {
             cell.river = true;
             cell.riverSize = size;
             var lowerCell = null;
+            var riverFlowDirection = null;
             var neighbors = cell.getNeighborIds();
             // we choose the lowest neighbour cell :
             for (var j = 0; j < neighbors.length; j++) {
@@ -274,12 +275,14 @@ var Island = {
                 var neighbor = this.diagram.cells[nId];
                 if (lowerCell == null || neighbor.elevation < lowerCell.elevation) {
                     lowerCell = neighbor;
+                    riverFlowDirection = this.getRiverFlowDirection(cell, neighbor);
                 }
             } 
             if (lowerCell.elevation < cell.elevation) {
                 // we continue the river to the next lowest cell :
                 this.setAsRiver(lowerCell, size);
                 cell.nextRiver = lowerCell; 
+                lowerCell.flowDirection = riverFlowDirection;
             } else {
                 // we are in a hole, so we create a lake :
                 cell.water = true;
@@ -438,6 +441,14 @@ var Island = {
             else if (cell.moisture > 0.16) return 'GRASSLAND';
             else return 'SUBTROPICAL_DESERT';
         }
+    },
+
+    getRiverFlowDirection: function (cell, lowerCell) {
+        var flowDirection = new Float32Array(2);
+        flowDirection[0] = lowerCell.site.x - cell.site.x;
+        flowDirection[1] = lowerCell.site.y - cell.site.y;
+
+        return flowDirection;
     },
 
     // The Perlin-based island combines perlin noise with the radius

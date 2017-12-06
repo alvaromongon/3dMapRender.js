@@ -71,42 +71,11 @@ var MeshDataFactory = {
                         voronoiMap.riverPaths[j].x2, voronoiMap.riverPaths[j].y2);
                     if (distance < 1) {
                         data.biomes[i] = "RIVER";
-                        
-                        if ((i - this.width - 1) >= 0 && data.biomes[i - this.width - 1] == "RIVER") {
-                            data.flowDirections[i*2] = 1;
-                            data.flowDirections[i*2+1] = 1;
-                        }
-                        if ((i - this.width) >= 0 && data.biomes[i - this.width] == "RIVER") {
-                            data.flowDirections[i*2] = 0;
-                            data.flowDirections[i*2+1] = 1;
-                        }
-                        if ((i - this.width + 1) >= 0 && data.biomes[i - this.width + 1] == "RIVER") {
-                            data.flowDirections[i*2] = -1;
-                            data.flowDirections[i*2+1] = 1;
-                        }
 
-                        if ((i - 1) >= 0 && data.biomes[i - 1] == "RIVER") {
-                            data.flowDirections[i*2] = 1;
-                            data.flowDirections[i*2+1] = 0;
-                        }
-                        if ((i + 1) < size && data.biomes[i + 1] == "RIVER") {
-                            data.flowDirections[i*2] = -1;
-                            data.flowDirections[i*2+1] = 0;
-                        }
-
-                        if ((i + this.width - 1) < size && data.biomes[i + this.width - 1] == "RIVER") {
-                            data.flowDirections[i*2] = 1;
-                            data.flowDirections[i*2+1] = -1;
-                        }
-                        if ((i + this.width) < size && data.biomes[i + this.width] == "RIVER") {
-                            data.flowDirections[i*2] = 0;
-                            data.flowDirections[i*2+1] = -1;
-                        }
-                        if ((i + this.width + 1) < size && data.biomes[i + this.width + 1] == "RIVER") {
-                            data.flowDirections[i*2] = -1;
-                            data.flowDirections[i*2+1] = -1;
-                        }
-
+                        if (voronoiMap.riverPaths[j].flowDirection){
+                            data.flowDirections[i*2] = voronoiMap.riverPaths[j].flowDirection[0];
+                            data.flowDirections[i*2+1] = voronoiMap.riverPaths[j].flowDirection[1];
+                        }                        
 
                         /*
                         //Set surronding points as RIVER_SIDE unless they are a river
@@ -167,26 +136,20 @@ var MeshDataFactory = {
                 var riverSegment = new Object();
                 //riverSegment.width = Math.min(cell.riverSize, this.config.maxRiversSize);
                 var x, y;
-                if (cell.water) {
-                    x = cell.site.x + (cell.nextRiver.site.x - cell.site.x) / 2;
-                    y = cell.site.y + (cell.nextRiver.site.y - cell.site.y) / 2;
-                } else {
-                    x = cell.site.x;
-                    y = cell.site.y;
 
-                }
+                // first segment
+                x = cell.site.x;
+                y = cell.site.y;
                 riverSegment.x1 = x;
                 riverSegment.y1 = y;
 
-                if (cell.nextRiver && !cell.nextRiver.water) {
-                    x = cell.nextRiver.site.x;
-                    y = cell.nextRiver.site.y;
-                } else {
-                    x = cell.site.x + (cell.nextRiver.site.x - cell.site.x) / 2;
-                    y = cell.site.y + (cell.nextRiver.site.y - cell.site.y) / 2;
-                }
+                // second segment
+                x = cell.nextRiver.site.x;
+                y = cell.nextRiver.site.y;
                 riverSegment.x2 = x;
                 riverSegment.y2 = y;
+
+                riverSegment.flowDirection = cell.nextRiver.flowDirection;
 
                 voronoiMap.riverPaths.push(riverSegment);
             }
