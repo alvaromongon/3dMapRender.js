@@ -41,13 +41,16 @@ var ThreeJsRenderer = {
     camera: null,
     light: null,
     renderer: null,
+    controls: null,
 
     render: function (canvas, meshData, width, height) {
         if (!width || !height) {
             console.error("ThreeJsRenderer.new method requires a not width and height parameters");
             return;
         }
-        this.canvas = canvas;
+        if(!this.canvas){
+            this.canvas = canvas;
+        }        
         this.width = width;
         this.height = height;   
 
@@ -56,26 +59,36 @@ var ThreeJsRenderer = {
         var elevationMultiplier = this.width * 0.6;
 
         // Scene
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color().setHSL(0.6, 0, 1);
-        this.scene.fog = new THREE.Fog(this.scene.background, 1, this.width * sizeMultiplier * 2);
-
+        if (!this.scene)
+        {
+            this.scene = new THREE.Scene();
+            this.scene.background = new THREE.Color().setHSL(0.6, 0, 1);
+            this.scene.fog = new THREE.Fog(this.scene.background, 1, this.width * sizeMultiplier * 2);
+        }
+        else{
+            this.clearScene(this.scene);
+        }
+        
         // Camera // (fov, aspect, near, far)
-        this.camera = new THREE.PerspectiveCamera(75, 1, 1, this.width * sizeMultiplier * 10); 
-        this.camera.position.x = -this.width * sizeMultiplier/2;
-        this.camera.position.y = this.width * sizeMultiplier;
-        this.camera.position.z = 0;
-        this.scene.add(this.camera);
+        if (!this.camera){
+            this.camera = new THREE.PerspectiveCamera(75, 1, 1, this.width * sizeMultiplier * 10); 
+            this.camera.position.x = -this.width * sizeMultiplier/2;
+            this.camera.position.y = this.width * sizeMultiplier;
+            this.camera.position.z = 0;
+            this.scene.add(this.camera);
+        }
 
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerWidth);
-        //this.renderer.setSize(this.width * sizeMultiplier, this.height * sizeMultiplier);
-        //this.renderer.physicallyCorrectLights = true;
-        //this.renderer.gammaInput = true;
-        //this.renderer.gammaOutput = true;
-        //this.renderer.shadowMap.enabled = true;
-        //this.renderer.toneMapping = THREE.ReinhardToneMapping;
+        if (!this.renderer){
+            this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+            this.renderer.setSize(window.innerWidth, window.innerWidth);
+            //this.renderer.setSize(this.width * sizeMultiplier, this.height * sizeMultiplier);
+            //this.renderer.physicallyCorrectLights = true;
+            //this.renderer.gammaInput = true;
+            //this.renderer.gammaOutput = true;
+            //this.renderer.shadowMap.enabled = true;
+            //this.renderer.toneMapping = THREE.ReinhardToneMapping;
+        }        
 
         this.renderMap(sizeMultiplier, elevationMultiplier, meshData);
         //this.renderSkyBox(sizeMultiplier, elevationMultiplier);
@@ -83,10 +96,13 @@ var ThreeJsRenderer = {
         this.renderBackgroundAndLight(sizeMultiplier, elevationMultiplier);
 
         // Controls
-        var controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-        //controls.maxPolarAngle = Math.PI * 0.5;
-        controls.minDistance = 1;
-        controls.maxDistance = this.width * sizeMultiplier;
+        if(!this.controls){
+            this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+            //controls.maxPolarAngle = Math.PI * 0.5;
+            this.controls.minDistance = 1;
+            this.controls.maxDistance = this.width * sizeMultiplier;
+        }
+
 
         animate();
 
@@ -143,7 +159,7 @@ var ThreeJsRenderer = {
         scene.add(ground);
 
         // WATER
-        var waterExtendedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplier * 4, this.height * sizeMultiplier * 4);
+        var waterExtendedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplier * 2, this.height * sizeMultiplier * 2);
         var flowDirectionExtended = new Float32Array(waterExtendedGeometry.parameters.width*waterExtendedGeometry.parameters.height*2);
         var biomesExtended = new Float32Array(waterExtendedGeometry.parameters.width*waterExtendedGeometry.parameters.height);
         waterExtendedGeometry.addAttribute('flowDirection', new THREE.BufferAttribute(flowDirectionExtended, 2));
@@ -174,7 +190,7 @@ var ThreeJsRenderer = {
     /// Render the rest of the ocen botton since the need to give a endless terrain apperance
     ///
     renderOceanBed: function (seaBedColor, sizeMultiplier) {
-        var oceanBedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplier * 4, this.height * sizeMultiplier * 4);
+        var oceanBedGeometry = new THREE.PlaneBufferGeometry(this.width * sizeMultiplier * 2, this.height * sizeMultiplier * 2);
         var oceanBedMaterial = new THREE.MeshBasicMaterial({ color: seaBedColor }); //, side: THREE.DoubleSide });
         var oceanBed = new THREE.Mesh(oceanBedGeometry, oceanBedMaterial);
 
@@ -338,8 +354,8 @@ var ThreeJsRenderer = {
         this.scene.add(hemiLightHelper);
         
 
-        var vertexShader = document.getElementById('vertexShader').textContent;
-        var fragmentShader = document.getElementById('fragmentShader').textContent;
+        var vertexShader = document.getElementById('backGroundVertexShader').textContent;
+        var fragmentShader = document.getElementById('backGroundfragmentShader').textContent;
         var uniforms = {
             topColor: { value: new THREE.Color(0x0077ff) },
             bottomColor: { value: new THREE.Color(0xffffff) },
@@ -356,6 +372,26 @@ var ThreeJsRenderer = {
 
         var sky = new THREE.Mesh(skyGeo, skyMat);
         this.scene.add(sky);
+    },
+
+    ///
+    /// Clear every object on the scene
+    ///
+    clearScene: function(scene){
+        while(scene.children.length > 0){ 
+            var obj = scene.children[0];            
+
+            scene.remove(obj);
+            
+            if(obj.geometry)
+                obj.geometry.dispose();
+            if(obj.material)
+                obj.material.dispose();
+            if(obj.mesh)
+                obj.mesh.dispose();
+            if(obj.texture)
+                obj.texture.dispose();
+        }        
     }
 }
 

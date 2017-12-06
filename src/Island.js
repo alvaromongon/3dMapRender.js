@@ -17,14 +17,14 @@ var Island = {
         maxRiversSize: 4,
         shading: 0.35,
         shadeOcean: true
-    },
-    perlinCanvas: null,
+    },    
     debug: false, // true if "debug" mode is activated
     voronoi: new Voronoi(),
     diagram: null,
     sites: [],
     seed: -1,
     perlin: null,
+    perlinCanvas: null,
 
     generate: function (userConfig, perlinCanvas) {        
         if (userConfig == undefined) {
@@ -46,7 +46,11 @@ var Island = {
         this.config.maxRiversSize       = (userConfig.maxRiversSize != undefined        ? userConfig.maxRiversSize      : 4);
         this.config.shading             = (userConfig.shading != undefined              ? userConfig.shading            : 0.35);
         this.config.shadeOcean          = (userConfig.shadeOcean != undefined           ? userConfig.shadeOcean         : true);               
-        
+                
+        this.debug = false, // true if "debug" mode is activated
+        this.voronoi = new Voronoi(),
+        this.diagram = null,
+        this.sites = [];
         this.seed = Math.random();
 
         this.perlinCanvas = perlinCanvas;

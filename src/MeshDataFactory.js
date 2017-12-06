@@ -6,7 +6,7 @@ var MeshDataFactory = {
 
     create: function (diagram, sites, width, height) {
         if (!diagram || !sites || !width || !height) {
-            console.error("TerrainMeshFactory.new method requires a not null diagram, sites and size parameters");
+            console.error("TerrainMeshFactory.create method requires a not null diagram, sites and size parameters");
             return;
         }
 

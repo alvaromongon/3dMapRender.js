@@ -1,8 +1,10 @@
 ﻿<!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-		<title>Map</title>
+        <title>three.js - 3d webgl render</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">		
+		<title>3d webgl render</title>
         
         <link href="css/map.css" rel="stylesheet">
 
@@ -13,24 +15,35 @@
         <script type="text/javascript" src="src/libraries/paper.js"></script>
 
         <script type="text/javascript" src="src/libraries/three.js"></script>
-        <script type="text/javascript" src="src/libraries/water2.js"></script>
         <script type="text/javascript" src="src/libraries/Reflector.js"></script>
         <script type="text/javascript" src="src/libraries/Refractor.js"></script>
         <script type="text/javascript" src="src/libraries/OrbitControls.js"></script>
+        <script type="text/javascript" src="src/libraries/Detector.js"></script>
+        <script type="text/javascript" src="src/libraries/dat.gui.min.js"></script>
 
         <script type="text/javascript" src="src/Island.js"></script>
         <script type="text/javascript" src="src/PaperRenderer.js"></script>
         <script type="text/javascript" src="src/MeshDataFactory.js"></script>        
         <script type="text/javascript" src="src/TerrainWater.js"></script>      
         <script type="text/javascript" src="src/ThreeJsRenderer.js"></script>
+        <script type="text/javascript" src="src/SimpleGUI.js"></script>
+
 	</head>
 
 	<body>
+        <div id="info">
+            <a href="https://threejs.org" target="_blank" rel="noopener noreferrer">three.js</a> - 3d webgl render
+        </div>
+
+        <div id="progress" style="Display:none">
+          <div id="progressBar"></div>
+        </div>
+
         <canvas id="paperCanvas" resize="true"></canvas>
         <canvas id="perlinNoiseCanvas" hidden="true"></canvas>
         <canvas id="threeJsCanvas" resize="true"></canvas>
 
-        <script type="x-shader/x-vertex" id="vertexShader">
+        <script type="x-shader/x-vertex" id="backGroundVertexShader">
 
             varying vec3 vWorldPosition;
 
@@ -45,7 +58,7 @@
 
         </script>
 
-        <script type="x-shader/x-fragment" id="fragmentShader">
+        <script type="x-shader/x-fragment" id="backGroundfragmentShader">
 
             uniform vec3 topColor;
             uniform vec3 bottomColor;
@@ -64,9 +77,31 @@
         </script>
         
         <script type="application/javascript">
-        window.onload = function(e) {
-            var paperCanvas = document.getElementById('paperCanvas');
-            var perlinNoiseCanvas = document.getElementById('perlinNoiseCanvas');
+            if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+
+        function startProgress() {
+            var progress = document.getElementById("progress"); 
+            progress.style.display = 'block';
+
+            var bar = document.getElementById("progressBar"); 
+            var width = 1;
+            bar.style.width = width + '%'; 
+        }
+
+        function updateProgress(percentage) {
+            var bar = document.getElementById("progressBar"); 
+            bar.style.width = percentage + '%'; 
+        }
+
+         function finishProgress(percentage) {
+            var progress = document.getElementById("progress"); 
+            progress.style.display = 'none';
+        }
+
+        var launchProcess = function(userConfig){
+            var paperCanvas = document.getElementById('paperCanvas');            
+            var perlinNoiseCanvas = document.getElementById('perlinNoiseCanvas');            
             var threeJsCanvas = document.getElementById('threeJsCanvas');
 
             paperCanvas.onclick = function() {
@@ -74,44 +109,54 @@
                 perlinNoiseCanvas.style.display = (perlinNoiseCanvas.style.display == 'block' ? 'none' : 'block');
             };
 
-        var userConfig = {
-            width: 256,
-            height: 256,
-            perlinWidth: 256,
-            perlinHeight: 256,
-            allowDebug: false, // if set to true, you can clic on the map to enter "debug" mode. Warning : debug mode is slow to initialize, set to false for faster rendering.
-            nbSites: 10000, //10000, // nb of voronoi cell
-            sitesDistribution: 'hexagon', // distribution of the site : random, square or hexagon
-            sitesRandomisation: 80, // will move each site in a random way (in %), for the square or hexagon distribution to look more random
-            nbGraphRelaxation: 0, // nb of time we apply the relaxation algo to the voronoi graph (slow !), for the random distribution to look less random
-            cliffsThreshold: 0.15,
-            lakesThreshold: 0.005, // lake elevation will increase by this value (* the river size) when a new river end inside
-            nbRivers: 25, //(10000 / 200),
-            maxRiversSize: 4,
-            shading: 0.35,
-            shadeOcean: true
+            startProgress();
+            var islandStartTime = new Date().getTime();
+            var result = Island.generate(userConfig, perlinNoiseCanvas);
+            console.log("Island generate finished in: " + eval(new Date().getTime() - islandStartTime) + " miliseconds");
+
+            updateProgress(25);
+            var paperStartTime = new Date().getTime();
+            PaperRenderer.render(paperCanvas, result.diagram, result.sites, userConfig);
+            console.log("Paper renderer finished in: " + eval(new Date().getTime() - paperStartTime) + " miliseconds");
+
+            updateProgress(50);
+            var meshDataFactoryStartTime = new Date().getTime();
+            var meshData = MeshDataFactory.create(result.diagram, result.sites, userConfig.width, userConfig.height);
+            console.log("Mesh data factory finished in: " + eval(new Date().getTime() - meshDataFactoryStartTime) + " miliseconds");
+
+            updateProgress(75);
+            var threeJsStartTime = new Date().getTime();
+            ThreeJsRenderer.render(threeJsCanvas, meshData, userConfig.width, userConfig.height);
+            console.log("Three renderer finished in: " + eval(new Date().getTime() - threeJsStartTime) + " miliseconds");
+
+            updateProgress(100);
+            finishProgress();
+            console.log("Complete process finished in : " + eval(new Date().getTime() - islandStartTime) + " miliseconds");
         }
 
-        var islandStartTime = new Date().getTime();
-        var result = Island.generate(userConfig, perlinNoiseCanvas);
-        console.log("Island generate finished in: " + eval(new Date().getTime() - islandStartTime) + " miliseconds");
+        window.onload = function(e) {            
+            var userConfig = {
+                width: 256,
+                height: 256,
+                perlinWidth: 256,
+                perlinHeight: 256,
+                allowDebug: false, // if set to true, you can clic on the map to enter "debug" mode. Warning : debug mode is slow to initialize, set to false for faster rendering.
+                nbSites: 10000, // nb of voronoi cell
+                sitesDistribution: 'hexagon', // distribution of the site : random, square or hexagon
+                sitesRandomisation: 80, // will move each site in a random way (in %), for the square or hexagon distribution to look more random
+                nbGraphRelaxation: 0, // nb of time we apply the relaxation algo to the voronoi graph (slow !), for the random distribution to look less random
+                cliffsThreshold: 0.15,
+                lakesThreshold: 0.005, // lake elevation will increase by this value (* the river size) when a new river end inside
+                nbRivers: 25, //(10000 / 200),
+                maxRiversSize: 4,
+                shading: 0.35,
+                shadeOcean: true
+            }
 
-        var paperStartTime = new Date().getTime();
-        PaperRenderer.render(paperCanvas, result.diagram, result.sites, userConfig);
-        console.log("Paper renderer finished in: " + eval(new Date().getTime() - paperStartTime) + " miliseconds");
-
-        var meshDataFactoryStartTime = new Date().getTime();
-        var meshData = MeshDataFactory.create(result.diagram, result.sites, userConfig.width, userConfig.height);
-        console.log("Mesh data factory finished in: " + eval(new Date().getTime() - meshDataFactoryStartTime) + " miliseconds");
-
-        var threeJsStartTime = new Date().getTime();
-        ThreeJsRenderer.render(threeJsCanvas, meshData, userConfig.width, userConfig.height);
-        console.log("Three renderer finished in: " + eval(new Date().getTime() - threeJsStartTime) + " miliseconds");
-
-        //var renderedTime = new Date().getTime() - rendererStartTime;
-        console.log("Complete process finished in : " + eval(new Date().getTime() - islandStartTime) + " miliseconds");
-    };
-    </script>
+            this.launchProcess(userConfig);
+            SimpleGUI.create(userConfig, this.launchProcess);
+        };
+        </script>
         <noscript>You need to enable Javascript in your browser for this page to display properly.</noscript>
 	</body>
 </html>
